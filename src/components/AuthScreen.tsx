@@ -83,7 +83,7 @@ export const AuthScreen = ({ onAuthSuccess }: AuthScreenProps) => {
       <div className="max-w-md w-full">
         {/* App Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-primary mb-2">Financify Lite</h1>
+          <h1 className="text-3xl font-bold text-primary mb-2">Financify</h1>
           <p className="text-muted-foreground">Smart Financial Management</p>
         </div>
 

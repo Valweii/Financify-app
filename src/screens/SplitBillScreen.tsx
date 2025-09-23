@@ -384,7 +384,12 @@ export const SplitBillScreen = () => {
             </div>
             <div>
               <label className="text-sm text-muted-foreground">Service Fee (IDR)</label>
-              <Input type="number" min={0} value={serviceFeeCents} onChange={(e) => setServiceFeeCents(Math.max(0, parseInt(e.target.value || '0', 10)))} />
+              <Input
+                type="number"
+                min={0}
+                value={serviceFeeCents}
+                onChange={(e) => setServiceFeeCents(Math.max(0, parseInt(e.target.value || '0', 10)))}
+              />
             </div>
           </div>
           {/* Selected person's running total */}

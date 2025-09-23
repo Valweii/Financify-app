@@ -77,7 +77,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
         <img 
           src={heroImage} 
           alt="Financial Management Dashboard" 
-          className="w-full h-32 object-cover"
+          className="w-full h-32 object-cover object-[center_10%]"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-primary/60 flex items-center justify-center">
           <div className="text-center text-white">

@@ -120,7 +120,7 @@ async function aiExtractFromImage(dataUrl: string, apiKey: string): Promise<{ it
         {
           role: "system",
           content:
-            "You are a receipt parser. Extract only purchasable line items and tax from a receipt image. Exclude headers, SUBTOTAL/TOTAL/CASH/CHANGE lines and modifiers (like sauces/options). Return STRICT JSON only: { items:[{name, price_cents}], tax_cents }.\n- name: concise item name\n- price_cents: integer IDR cents (e.g., Rp 45.000 => 4500000).\nIf tax is shown as a percentage, compute tax_cents from the sum of item prices.",
+            "You are a precise receipt parser. For each purchasable item line, use the RIGHTMOST numeric amount on that line as the item's price. Do NOT multiply by quantities (e.g., '1 x', '2 pcs'); treat those as descriptors only. Exclude headers and totals: SUBTOTAL, TOTAL, CASH, CHANGE, TAX LINES, and modifiers/options like sauces. Return STRICT JSON only: { items:[{name, price_cents}], tax_cents }. name is concise; price_cents is integer IDR cents (Rp 45.000 => 45000).",
         },
         {
           role: "user",
@@ -152,7 +152,7 @@ async function aiExtractFromImage(dataUrl: string, apiKey: string): Promise<{ it
         response_format: { type: "json_object" },
         temperature: 0,
         messages: [
-          { role: "system", content: "Return JSON only: { items:[{name, price_cents}], tax_cents }. Do not include subtotal/total/cash/change lines." },
+          { role: "system", content: "Return JSON only: { items:[{name, price_cents}], tax_cents }. Use RIGHTMOST number as price, do NOT multiply by quantities like 'x' or 'pcs'. Exclude subtotal/total/cash/change/tax lines and modifiers/options." },
           { role: "user", content: [ { type: "text", text: "Parse this receipt image." }, { type: "image_url", image_url: { url: dataUrl } } ] }
         ]
       } as any;
