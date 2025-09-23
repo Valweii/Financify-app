@@ -441,18 +441,6 @@ export const SplitBillScreen = () => {
             </div>
           </div>
           {/* Selected person's running total */}
-          {assignPersonId && (
-            <div className="flex items-center justify-between rounded-lg border border-border/50 p-3 mb-3 bg-muted/30">
-              <div className="flex items-center gap-2">
-                <Avatar className="h-6 w-6"><AvatarFallback className="text-[10px]">{getInitials(people.find(p=>p.id===assignPersonId)?.name || '')}</AvatarFallback></Avatar>
-                <span className="text-sm text-muted-foreground">Selected</span>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-muted-foreground mr-2">Subtotal</span>
-                <MoneyDisplay amount={(personTotals[assignPersonId]?.subtotal_cents)||0} size="sm" />
-              </div>
-            </div>
-          )}
           {myPersonId && (
             <div className="flex items-center justify-between rounded-lg border border-border/50 p-3 mb-3">
               <div className="text-sm">
@@ -646,7 +634,33 @@ export const SplitBillScreen = () => {
             </Button>
           )}
           {step === 3 && (
-            <Button className="btn-primary" onClick={() => setStep(0)}>Done</Button>
+            <Button
+              className="btn-primary"
+              onClick={async () => {
+                try {
+                  if (myPersonId) {
+                    const total = personTotals[myPersonId]?.total_cents || 0;
+                    if (total > 0) {
+                      const today = new Date();
+                      const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+                      const who = myName.trim() || people.find(p => p.id === myPersonId)?.name || 'Me';
+                      await createTransaction({
+                        date,
+                        description: `Split bill (${who})`,
+                        type: 'debit',
+                        amount_cents: total,
+                        category: 'Split Bill',
+                      });
+                      toast({ title: 'Expense added', description: 'Your share has been saved.' });
+                    }
+                  }
+                } finally {
+                  setStep(0);
+                }
+              }}
+            >
+              Done
+            </Button>
           )}
         </div>
       </div>
