@@ -120,7 +120,7 @@ async function aiExtractFromImage(dataUrl: string, apiKey: string): Promise<{ it
         {
           role: "system",
           content:
-            "You are a precise receipt parser. For each purchasable item line, use the RIGHTMOST numeric amount on that line as the item's price. Do NOT multiply by quantities (e.g., '1 x', '2 pcs'); treat those as descriptors only. Exclude headers and totals: SUBTOTAL, TOTAL, CASH, CHANGE, TAX LINES, and modifiers/options like sauces. Return STRICT JSON only: { items:[{name, price_cents}], tax_cents }. name is concise; price_cents is integer IDR cents (Rp 45.000 => 45000).",
+            "You are a precise receipt parser. If the image is tilted or rotated, conceptually analyze it across multiple orientations (≈0°-90°) and choose the interpretation that yields consistent items and totals. For each purchasable item line, use the RIGHTMOST numeric amount on that line as the item's price. Do NOT multiply by quantities (e.g., '1 x', '2 pcs'); treat those as descriptors only. Exclude headers and totals: SUBTOTAL, TOTAL, CASH, CHANGE, TAX LINES, and modifiers/options like sauces. Return STRICT JSON only: { items:[{name, price_cents}], tax_cents }. name is concise; price_cents is integer IDR cents (Rp 45.000 => 45000).",
         },
         {
           role: "user",
@@ -152,7 +152,7 @@ async function aiExtractFromImage(dataUrl: string, apiKey: string): Promise<{ it
         response_format: { type: "json_object" },
         temperature: 0,
         messages: [
-          { role: "system", content: "Return JSON only: { items:[{name, price_cents}], tax_cents }. Use RIGHTMOST number as price, do NOT multiply by quantities like 'x' or 'pcs'. Exclude subtotal/total/cash/change/tax lines and modifiers/options." },
+          { role: "system", content: "Return JSON only: { items:[{name, price_cents}], tax_cents }. If rotated/tilted, mentally examine 0°–90° orientations and pick the best reading. Use RIGHTMOST number as price; do NOT multiply by 'x' or 'pcs'. Exclude subtotal/total/cash/change/tax lines and modifiers/options." },
           { role: "user", content: [ { type: "text", text: "Parse this receipt image." }, { type: "image_url", image_url: { url: dataUrl } } ] }
         ]
       } as any;
