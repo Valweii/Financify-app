@@ -26,9 +26,6 @@ export const MoneyDisplay = ({
       maximumFractionDigits: 0,
     }).format(absValue);
 
-    if (showSign && value < 0) {
-      return `- ${formatted}`;
-    }
     return formatted;
   };
 

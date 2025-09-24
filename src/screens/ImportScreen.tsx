@@ -1,7 +1,9 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFinancifyStore, ImportedTransaction } from "@/store";
-import { Upload, FileText, Wand2, Plus, AlertCircle } from "lucide-react";
+import { Upload, FileText, Wand2, Plus, AlertCircle, Edit2, Check, X } from "lucide-react";
 import { useState, useRef } from "react";
 import { MoneyDisplay } from "@/components/MoneyDisplay";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -13,6 +15,9 @@ export const ImportScreen = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCategorizing, setIsCategorizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<Partial<ImportedTransaction>>({});
+  const [editAmount, setEditAmount] = useState<string>("0");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -96,6 +101,63 @@ export const ImportScreen = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const startEdit = (index: number, transaction: ImportedTransaction) => {
+    setEditingIndex(index);
+    // Convert ISO date to YYYY-MM-DD format for HTML date input
+    const dateForInput = transaction.date ? transaction.date.split('T')[0] : '';
+    setEditForm({
+      date: dateForInput,
+      description: transaction.description,
+      type: transaction.type,
+      amount_cents: transaction.amount_cents,
+      category: transaction.category,
+    });
+    setEditAmount(transaction.amount_cents.toString());
+  };
+
+  const cancelEdit = () => {
+    setEditingIndex(null);
+    setEditForm({});
+    setEditAmount("0");
+  };
+
+  const saveEdit = () => {
+    if (editingIndex === null) return;
+    
+    const updatedTransactions = [...importedDraft];
+    // Convert date back to ISO format if it was changed
+    const updatedForm = {
+      ...editForm,
+      date: editForm.date ? new Date(editForm.date).toISOString() : updatedTransactions[editingIndex].date,
+      amount_cents: Math.max(0, parseInt(editAmount || '0', 10)),
+    };
+    
+    updatedTransactions[editingIndex] = {
+      ...updatedTransactions[editingIndex],
+      ...updatedForm,
+    };
+    
+    setImportedDraft(updatedTransactions);
+    setEditingIndex(null);
+    setEditForm({});
+    setEditAmount("0");
+    
+    toast({
+      title: "Transaction Updated",
+      description: "Transaction has been updated successfully.",
+    });
+  };
+
+  const deleteTransaction = (index: number) => {
+    const updatedTransactions = importedDraft.filter((_, i) => i !== index);
+    setImportedDraft(updatedTransactions);
+    
+    toast({
+      title: "Transaction Deleted",
+      description: "Transaction has been removed from the import.",
+    });
   };
 
   return (
@@ -193,29 +255,142 @@ export const ImportScreen = () => {
           <div className="space-y-3">
             {importedDraft.map((transaction, index) => (
               <Card key={index} className="financial-card p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{transaction.description}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(transaction.date).toLocaleDateString('id-ID')}
-                      </p>
-                      {transaction.category && (
-                        <>
-                          <span className="text-muted-foreground">•</span>
-                          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                            {transaction.category}
-                          </span>
-                        </>
-                      )}
+                {editingIndex === index ? (
+                  // Edit Mode
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Date</label>
+                        <Input
+                          type="date"
+                          value={editForm.date || ''}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value }))}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Type</label>
+                        <Select
+                          value={editForm.type || 'debit'}
+                          onValueChange={(value: 'debit' | 'credit') => setEditForm(prev => ({ ...prev, type: value }))}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="debit">Debit (Expense)</SelectItem>
+                            <SelectItem value="credit">Credit (Income)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Description</label>
+                      <Input
+                        value={editForm.description || ''}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                        className="mt-1"
+                        placeholder="Transaction description"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Amount (IDR)</label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={editAmount}
+                          onChange={(e) => setEditAmount(e.target.value)}
+                          className="mt-1"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Category</label>
+                        <Select
+                          value={editForm.category || 'none'}
+                          onValueChange={(value) => setEditForm(prev => ({ ...prev, category: value === 'none' ? undefined : value }))}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No Category</SelectItem>
+                            <SelectItem value="Income">Income</SelectItem>
+                            <SelectItem value="Food & Drinks">Food & Drinks</SelectItem>
+                            <SelectItem value="Shopping">Shopping</SelectItem>
+                            <SelectItem value="Bills & Utilities">Bills & Utilities</SelectItem>
+                            <SelectItem value="Transport">Transport</SelectItem>
+                            <SelectItem value="Health">Health</SelectItem>
+                            <SelectItem value="Housing">Housing</SelectItem>
+                            <SelectItem value="Education">Education</SelectItem>
+                            <SelectItem value="Fees">Fees</SelectItem>
+                            <SelectItem value="Transfer">Transfer</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 pt-2">
+                      <Button onClick={saveEdit} size="sm" className="btn-primary">
+                        <Check className="w-4 h-4 mr-1" />
+                        Save
+                      </Button>
+                      <Button onClick={cancelEdit} variant="outline" size="sm">
+                        <X className="w-4 h-4 mr-1" />
+                        Cancel
+                      </Button>
                     </div>
                   </div>
-                  <MoneyDisplay 
-                    amount={transaction.type === 'credit' ? transaction.amount_cents : -transaction.amount_cents}
-                    showSign
-                    size="md"
-                  />
-                </div>
+                ) : (
+                  // View Mode
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{transaction.description}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(transaction.date).toLocaleDateString('id-ID')}
+                        </p>
+                        {transaction.category && (
+                          <>
+                            <span className="text-muted-foreground">•</span>
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                              {transaction.category}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MoneyDisplay 
+                        amount={transaction.type === 'credit' ? transaction.amount_cents : -transaction.amount_cents}
+                        showSign
+                        size="md"
+                      />
+                      <div className="flex gap-1">
+                        <Button
+                          onClick={() => startEdit(index, transaction)}
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          onClick={() => deleteTransaction(index)}
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </Card>
             ))}
           </div>
