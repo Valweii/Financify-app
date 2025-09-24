@@ -136,9 +136,17 @@ export const SplitBillScreen = () => {
           ]);
           toast({ title: "Items detected", description: `Added ${itemsFromOcr.length} item(s) from receipt.` });
         }
+        // Automatically proceed to next step after processing
+        setTimeout(() => {
+          setStep(1);
+        }, 1000); // Small delay to show completion
       } catch (e) {
         console.error(e);
         toast({ title: "OCR failed", description: "Could not read text from image. Please add items manually." });
+        // Still proceed to next step even if OCR fails
+        setTimeout(() => {
+          setStep(1);
+        }, 1000);
       } finally {
         setIsOcrLoading(false);
       }
@@ -262,35 +270,54 @@ export const SplitBillScreen = () => {
   }
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6">
       <div className="space-y-2">
         <h1 className="text-2xl font-bold">Split Bill</h1>
         <p className="text-muted-foreground">Step {step + 1} of 4</p>
       </div>
 
       {step === 0 && (
-        <Card className="financial-card p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ImagePlus className="w-5 h-5 text-primary" />
-              <div>
-                <p className="font-medium">Upload receipt (optional)</p>
-                <p className="text-sm text-muted-foreground">We’ll try to detect items automatically</p>
+        <Card className="financial-card p-4 h-[65vh] flex flex-col">
+          <div className="flex-1 flex flex-col items-center justify-center">
+            {isOcrLoading ? (
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <div className="relative">
+                  <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                  <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-r-primary/40 rounded-full animate-pulse"></div>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-medium text-primary">Processing receipt...</p>
+                  <p className="text-sm text-muted-foreground">Detecting items automatically</p>
+                </div>
               </div>
-            </div>
-            <label className="btn-primary inline-flex items-center justify-center rounded-md px-3 py-2 cursor-pointer disabled:opacity-70 margin-left-10" title={isOcrLoading ? 'Processing...' : undefined}>
-              <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && e.target.files[0] && handleImageUpload(e.target.files[0])} />
-              {isOcrLoading ? 'Processing...' : 'Upload'}
-            </label>
+            ) : (
+              <>
+                {imagePreview ? (
+                  <div className="flex-1 flex items-center justify-center w-full">
+                    <label className="cursor-pointer w-full h-full flex items-center justify-center">
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && e.target.files[0] && handleImageUpload(e.target.files[0])} />
+                      <img 
+                        src={imagePreview} 
+                        alt="Receipt preview - Click to upload different image" 
+                        className="rounded-lg border border-border/50 w-[27vw] h-[48vh] object-contain hover:opacity-80 transition-opacity" 
+                        title="Click to upload a different receipt"
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <label className="btn-primary inline-flex items-center justify-center rounded-md px-5 py-3 cursor-pointer disabled:opacity-70">
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && e.target.files[0] && handleImageUpload(e.target.files[0])} />
+                    Upload
+                  </label>
+                )}
+              </>
+            )}
           </div>
-          {imagePreview && (
-            <img src={imagePreview} alt="Receipt preview" className="mt-3 rounded-lg border border-border/50 max-h-64 object-contain" />
-          )}
         </Card>
       )}
 
       {step === 1 && (
-        <Card className="financial-card p-4">
+        <Card className="financial-card p-4 h-[65vh] flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold">Add people</h3>
             <Dialog open={isAddPersonOpen} onOpenChange={setIsAddPersonOpen}>
@@ -313,7 +340,7 @@ export const SplitBillScreen = () => {
               </DialogContent>
             </Dialog>
           </div>
-          <div className="space-y-2">
+          <div className="flex-1 space-y-2 overflow-y-auto">
             {people.length === 0 && (
               <p className="text-sm text-muted-foreground">No people added yet</p>
             )}
@@ -334,7 +361,7 @@ export const SplitBillScreen = () => {
       )}
 
       {step === 2 && (
-        <Card className="financial-card p-4">
+        <Card className="financial-card p-4 h-[65vh] flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold">Assign items</h3>
             <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
@@ -440,39 +467,8 @@ export const SplitBillScreen = () => {
               />
             </div>
           </div>
-          {/* Selected person's running total */}
-          {myPersonId && (
-            <div className="flex items-center justify-between rounded-lg border border-border/50 p-3 mb-3">
-              <div className="text-sm">
-                Your total
-              </div>
-              <div className="flex items-center gap-3">
-                <MoneyDisplay amount={(personTotals[myPersonId]?.total_cents)||0} size="md" />
-                <Button
-                  type="button"
-                  disabled={!personTotals[myPersonId] || (personTotals[myPersonId]?.total_cents||0) === 0}
-                  onClick={async () => {
-                    const total = personTotals[myPersonId!]?.total_cents || 0;
-                    if (total <= 0) return;
-                    const today = new Date();
-                    const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-                    await createTransaction({
-                      date,
-                      description: `Split bill (${myName || 'Me'})`,
-                      type: 'debit',
-                      amount_cents: total,
-                      category: 'Split Bill',
-                    });
-                    toast({ title: 'Expense added', description: 'Your share has been saved as an expense.' });
-                  }}
-                >
-                  Add Expense
-                </Button>
-              </div>
-            </div>
-          )}
           {/* Quick actions */}
-          <div className="space-y-2">
+          <div className="flex-1 space-y-2 overflow-y-auto">
             {items.length === 0 && (
               <p className="text-sm text-muted-foreground">No items yet</p>
             )}
@@ -575,9 +571,9 @@ export const SplitBillScreen = () => {
       )}
 
       {step === 3 && (
-        <Card className="financial-card p-4">
+        <Card className="financial-card p-4 flex flex-col">
           <h3 className="text-lg font-semibold mb-3">Summary</h3>
-          <div className="space-y-2">
+          <div className="flex-1 space-y-2 overflow-y-auto">
             {people.map(p => {
               const details = personTotals[p.id];
               return (

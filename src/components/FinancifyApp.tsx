@@ -103,7 +103,7 @@ export const FinancifyApp = () => {
         </div>
 
         {/* Main Content */}
-        <main className="px-4 py-6">
+        <main className="px-4 py-4">
           {renderScreen()}
         </main>
 
