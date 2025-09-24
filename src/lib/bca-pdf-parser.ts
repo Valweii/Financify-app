@@ -1,191 +1,451 @@
 import type { ImportedTransaction } from "@/store";
 
-// Lightweight text extractor using pdfjs-dist with optional OCR fallback via tesseract.js
-// The BCA statement format has rows like:
-// 01/08  TRSF E-BANKING DB  ... 98,000.00  DB   28,964,344.49
-// We'll parse by scanning for date tokens (dd/mm), aggregating description text
-// until we find an amount followed by DB/CR.
+// Enhanced BCA statement parser with robust multiline handling and format detection
+import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 
-// pdfjs-dist worker setup for Vite
-import { GlobalWorkerOptions, getDocument, type TextItem } from "pdfjs-dist";
-// Use Vite's ?url to load the worker asset
+// Vite worker setup
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - Vite will resolve the URL at build time
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl as unknown as string;
 
-function idrToCents(amountIdr: number): number {
-  // Represent IDR in cents for internal consistency
-  return Math.round(amountIdr * 100);
+interface TransactionBuffer {
+  date: string;
+  lines: string[];
+  isComplete: boolean;
 }
 
+// Enhanced amount parsing for Indonesian format
 function parseAmountToIdr(raw: string): number | null {
-  // Normalize Indonesian-format numbers like 3,000.00 or 3.000,00
+  if (!raw) return null;
+  
+  // Clean the raw string - keep only digits, commas, and dots
   const cleaned = raw
-    .replace(/[^0-9,\.]/g, "")
+    .replace(/[^\d,\.]/g, "")
     .trim();
-  if (!cleaned) return null;
-  // Prefer last separator as decimal mark
-  const lastComma = cleaned.lastIndexOf(",");
-  const lastDot = cleaned.lastIndexOf(".");
-  const decimalPos = Math.max(lastComma, lastDot);
-  let integerPart = cleaned;
-  if (decimalPos !== -1) {
-    integerPart = cleaned.slice(0, decimalPos);
+    
+  if (!cleaned || cleaned === "0" || cleaned === "0.00") return null;
+  
+  // Handle Indonesian format: comma as thousand separator, dot as decimal
+  // Examples: 21,000.00, 1,500,000.00, 500.00
+  try {
+    // Split on dot to separate decimal part
+    const parts = cleaned.split('.');
+    
+    if (parts.length === 2) {
+      const integerPart = parts[0].replace(/,/g, ''); // Remove thousand separators
+      const decimalPart = parts[1].padEnd(2, '0').substring(0, 2); // Ensure 2 decimal places
+      
+      const fullNumber = parseFloat(`${integerPart}.${decimalPart}`);
+      return Math.round(fullNumber);
+    } else if (parts.length === 1) {
+      // No decimal part - treat as whole rupiah
+      const integerPart = cleaned.replace(/,/g, '');
+      const fullNumber = parseInt(integerPart, 10);
+      return fullNumber;
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn(`Failed to parse amount: "${raw}"`, error);
+    return null;
   }
-  // Remove thousand separators
-  const normalized = integerPart.replace(/[\.,]/g, "");
-  if (!normalized) return null;
-  return parseInt(normalized, 10);
 }
 
-function splitLines(text: string): string[] {
+// Enhanced line filtering and preprocessing
+function preprocessLines(text: string): string[] {
   return text
     .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(l => l.length > 0);
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    // Remove obvious header/footer patterns
+    .filter(line => !isIgnorableLine(line));
 }
 
-// Core text parsing for BCA statements
+// Comprehensive line filtering
+function isIgnorableLine(line: string): boolean {
+  const ignorablePatterns = [
+    // Headers and metadata
+    /^REKENING TAHAPAN/i,
+    /^KCU\s+/i,
+    /^KANTOR CABANG/i,
+    /^NO\.\s*REKENING/i,
+    /^HALAMAN/i,
+    /^PERIODE/i,
+    /^MATA UANG/i,
+    /^CATATAN/i,
+    /^NOTES/i,
+    
+    // Table headers
+    /^TANGGAL\s+KETERANGAN/i,
+    /^DATE\s+DESCRIPTION/i,
+    /^TANGGAL\s*$/i,
+    /^KETERANGAN\s*$/i,
+    /^CBG\s*$/i,
+    /^MUTASI\s*$/i,
+    /^SALDO\s*$/i,
+    
+    // Page continuation
+    /^Bersambung/i,
+    /^Continued/i,
+    /^Sambungan/i,
+    
+    // Table separators and formatting
+    /^[-\s]+$/,
+    /^[=\s]+$/,
+    /^\*+$/,
+    
+    // Summary section identifiers (we'll handle these separately)
+    /^JUMLAH MUTASI/i,
+    /^TOTAL MUTATION/i,
+  ];
+  
+  return ignorablePatterns.some(pattern => pattern.test(line));
+}
+
+// Check if line is a summary/balance entry that shouldn't be treated as a transaction
+function isSummaryLine(line: string): boolean {
+  const summaryPatterns = [
+    /^SALDO AWAL\b/i,
+    /^OPENING BALANCE\b/i,
+    /^SALDO AKHIR\b/i,
+    /^CLOSING BALANCE\b/i,
+    /^MUTASI\s+(DB|CR)\b/i, // More specific: MUTASI followed by DB/CR
+    // /^TOTAL MUTATION\b/i,
+    // /^BUNGA\b/i,
+    // /^INTEREST\b/i,
+    // /^PAJAK BUNGA\b/i,
+    // /^TAX ON INTEREST\b/i,
+    // /^BIAYA ADM\b/i,
+    // /^ADMIN FEE\b/i,
+  ];
+  
+  return summaryPatterns.some(pattern => pattern.test(line));
+}
+
+// Enhanced date detection
+function extractDateFromLine(line: string): string | null {
+  // Match dd/mm format at start of line
+  const dateMatch = line.match(/^(\d{1,2})\/(\d{1,2})\b/);
+  if (dateMatch) {
+    const day = dateMatch[1].padStart(2, '0');
+    const month = dateMatch[2].padStart(2, '0');
+    return `${day}/${month}`;
+  }
+  return null;
+}
+
+// Enhanced transaction detection and parsing
+function parseTransactionFromBuffer(buffer: TransactionBuffer): ImportedTransaction | null {
+  if (!buffer.date || buffer.lines.length === 0) return null;
+  
+  const fullText = buffer.lines.join(' ').replace(/\s+/g, ' ').trim();
+  
+  // Skip summary lines
+  if (isSummaryLine(fullText)) return null;
+  
+  // Enhanced amount detection patterns
+  const amountPatterns = [
+    // Debit: amount followed by DB, optionally followed by saldo
+    /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*DB(?:\s+(\d{1,3}(?:,\d{3})*(?:\.\d{2})?))?/i,
+    // Credit: amount followed by CR, optionally followed by saldo
+    /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*CR(?:\s+(\d{1,3}(?:,\d{3})*(?:\.\d{2})?))?/i,
+    // Credit without CR indicator: amount at end of line (after description) followed by saldo
+    /\s+(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s+(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*$/,
+    // Credit: amount at end of line without saldo (common for credit transactions)
+    // Use a more specific pattern to avoid matching partial amounts
+    /(\d{2,}(?:,\d{3})*(?:\.\d{2})?)\s*$/,
+    // Credit: amount in middle of line followed by reference number (e.g., "41000.00 3008/FTSCY/WS95031")
+    /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s+(?=\d{4}\/\w+)/,
+    // Credit: amount in middle of line (look for larger amounts, not small numbers like dates)
+    /(\d{2,}(?:,\d{3})*(?:\.\d{2})?)\s+(?=.*[A-Za-z])/,
+  ];
+  
+  for (let i = 0; i < amountPatterns.length; i++) {
+    const pattern = amountPatterns[i];
+    const match = fullText.match(pattern);
+    
+    if (match) {
+      const amountStr = match[1];
+      const amount = parseAmountToIdr(amountStr);
+      
+      if (amount === null || amount === 0) continue;
+      
+      // Determine transaction type
+      let type: 'debit' | 'credit';
+      if (i === 0) { // DB pattern
+        type = 'debit';
+      } else if (i === 1) { // CR pattern
+        type = 'credit';
+      } else { // Amount without explicit DB/CR
+        // For patterns 2, 3, 4: assume credit unless context suggests otherwise
+        // Check if description contains debit indicators
+        const desc = fullText.toLowerCase();
+        if (desc.includes('debit') || desc.includes('withdraw') || desc.includes('payment')) {
+          type = 'debit';
+        } else {
+          type = 'credit';
+        }
+      }
+      
+      // Extract description by removing the amount pattern from the text
+      let description = fullText.replace(pattern, '').trim();
+      
+      // Clean up description
+      description = description
+        .replace(/\s{2,}/g, ' ') // Normalize whitespace
+        .replace(/^[\/\-\s]+|[\/\-\s]+$/g, '') // Remove leading/trailing separators
+        .trim();
+        
+      // Skip if description is too short or seems invalid
+      if (description.length < 2) return null;
+      
+      return {
+        date: toIsoDate(buffer.date),
+        description,
+        type,
+        amount_cents: amount,
+      };
+    }
+  }
+  
+  return null;
+}
+
+// Enhanced date conversion with better year inference
+function toIsoDate(ddmm: string): string {
+  const [day, month] = ddmm.split('/').map(part => part.padStart(2, '0'));
+  
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // getMonth() is 0-indexed
+  
+  // Smart year inference:
+  // If the statement month is more than 6 months in the future, assume it's from last year
+  const statementMonth = parseInt(month, 10);
+  let year = currentYear;
+  
+  if (statementMonth > currentMonth + 6) {
+    year = currentYear - 1;
+  }
+  
+  try {
+    const date = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+    return date.toISOString();
+  } catch (error) {
+    // Fallback to current year if date construction fails
+    console.warn(`Invalid date: ${day}/${month}/${year}, using current year`);
+    return new Date(`${currentYear}-${month}-${day}T00:00:00.000Z`).toISOString();
+  }
+}
+
+// Enhanced text parsing with better multiline handling
 export function parseBcaStatementText(text: string): ImportedTransaction[] {
-  const lines = splitLines(text);
+  const lines = preprocessLines(text);
   const transactions: ImportedTransaction[] = [];
 
-  // Regexes
-  const dateRe = /^(\d{2})\/(\d{2})/; // dd/mm
-  const amountRe = /([0-9][0-9\.,]*)\s*(DB|CR)\b/i;
-
-  let buffer: { date?: string; parts: string[] } | null = null;
-
-  const flushBuffer = () => {
-    if (!buffer) return;
-    const joined = buffer.parts.join(" ");
-    const match = joined.match(amountRe);
-    if (!match) {
-      buffer = null;
-      return;
+  let currentBuffer: TransactionBuffer | null = null;
+  
+  const processBuffer = () => {
+    if (currentBuffer) {
+      const transaction = parseTransactionFromBuffer(currentBuffer);
+      if (transaction) {
+        transactions.push(transaction);
+      }
+      currentBuffer = null;
     }
-    const rawAmount = match[1];
-    const typeToken = match[2].toUpperCase();
-    const amountIdr = parseAmountToIdr(rawAmount);
-    if (amountIdr == null) {
-      buffer = null;
-      return;
-    }
-    // Description: remove trailing amount and DB/CR tokens
-    const description = joined
-      .replace(amountRe, "")
-      .replace(/\s{2,}/g, " ")
-      .trim();
-
-    transactions.push({
-      date: toIsoDate(buffer.date!),
-      description,
-      type: typeToken === "CR" ? "credit" : "debit",
-      // Amounts extracted from BCA statements are in IDR with two trailing decimals.
-      // Our previous conversion to cents over-counted by 100. Normalize by dividing by 100.
-      amount_cents: Math.round(idrToCents(amountIdr) / 100),
-    });
-    buffer = null;
   };
 
   for (const line of lines) {
-    // Ignore header/footer noise
-    if (/^REKENING TAHAPAN/i.test(line)) continue;
-    if (/^KCU\s+/i.test(line)) continue;
-    if (/^NO\. REKENING/i.test(line)) continue;
-    if (/^CATATAN/i.test(line)) continue;
-    if (/^TANGGAL\b/i.test(line)) continue;
-    if (/^Bersambung/i.test(line)) continue;
-    if (/^SALDO AWAL/i.test(line)) continue;
-
-    const d = line.match(dateRe);
-    if (d) {
-      // Starting a new row; flush previous
-      flushBuffer();
-      const dd = d[1];
-      const mm = d[2];
-      const date = `${dd}/${mm}`;
-      const rest = line.replace(dateRe, "").trim();
-      buffer = { date, parts: [rest] };
-      continue;
-    }
-
-    if (buffer) {
-      buffer.parts.push(line);
-      // If line contains amount + DB/CR, flush now
-      if (amountRe.test(line)) {
-        flushBuffer();
+    // Check for date pattern to start new transaction
+    const date = extractDateFromLine(line);
+    
+    if (date) {
+      // Process previous buffer before starting new one
+      processBuffer();
+      
+      // Start new transaction buffer
+      const remainingLine = line.replace(/^\d{1,2}\/\d{1,2}\s*/, '').trim();
+      currentBuffer = {
+        date,
+        lines: remainingLine ? [remainingLine] : [],
+        isComplete: false
+      };
+    } else if (currentBuffer) {
+      // Add line to current transaction buffer
+      currentBuffer.lines.push(line);
+      
+      // Check if this line completes the transaction (contains amount + DB/CR or final amount)
+      const hasAmount = /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(DB|CR)?/i.test(line);
+      const hasAmountAtEnd = /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*$/.test(line);
+      const hasLargeAmount = /(\d{2,}(?:,\d{3})*(?:\.\d{2})?)\s+(?=.*[A-Za-z])/.test(line);
+      
+      if (hasAmount || hasAmountAtEnd || hasLargeAmount) {
+        currentBuffer.isComplete = true;
+        processBuffer();
       }
     }
+    // If no current buffer and no date, skip line (it's probably noise)
   }
-
-  // Flush any dangling buffer
-  flushBuffer();
-
-  return transactions;
+  
+  // Process any remaining buffer
+  processBuffer();
+  
+  // Post-process: filter out duplicates and invalid transactions
+  return transactions
+    // .filter((t, index, arr) => {
+    //   // Remove duplicates based on date + description + amount
+    //   const key = `${t.date}-${t.description}-${t.amount_cents}`;
+    //   return arr.findIndex(other => 
+    //     `${other.date}-${other.description}-${other.amount_cents}` === key
+    //   ) === index;
+    // })
+    .filter(t => 
+      t.amount_cents > 0 && 
+      t.description.length > 2 &&
+      !isSummaryLine(t.description)
+    );
 }
 
-function toIsoDate(ddmm: string): string {
-  // dd/mm without year -> infer year from current context: choose the most recent occurrence
-  const [dd, mm] = ddmm.split("/");
-  const now = new Date();
-  const year = now.getFullYear();
-  // If month appears to be in the future relative to now (e.g., statement from last month),
-  // prefer current year still — users can adjust later if needed.
-  const iso = new Date(`${year}-${mm}-${dd}T00:00:00.000Z`).toISOString();
-  return iso;
-}
-
+// Enhanced PDF text extraction with better error handling
 async function extractTextWithPdfJs(file: File): Promise<string> {
+  try {
   const data = await file.arrayBuffer();
   const doc = await getDocument({ data }).promise;
+    
   let fullText = "";
+    
   for (let i = 1; i <= doc.numPages; i++) {
+      try {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
-    const pageText = (content.items as TextItem[])
-      .map((it) => ("str" in it ? (it as unknown as { str: string }).str : ""))
-      .join("\n");
-    fullText += pageText + "\n";
+        
+        // More sophisticated text extraction that preserves layout
+        const pageItems = content.items
+          .filter((item): item is any => 'str' in item && item.str.trim().length > 0)
+          .sort((a, b) => {
+            // Sort by y-coordinate (top to bottom), then x-coordinate (left to right)
+            const yDiff = Math.round(b.transform[5]) - Math.round(a.transform[5]);
+            if (Math.abs(yDiff) > 2) return yDiff;
+            return Math.round(a.transform[4]) - Math.round(b.transform[4]);
+          });
+        
+        let currentY = null;
+        let currentLine = [];
+        
+        for (const item of pageItems) {
+          const y = Math.round(item.transform[5]);
+          const text = item.str.trim();
+          
+          if (currentY === null || Math.abs(y - currentY) <= 2) {
+            // Same line
+            currentLine.push(text);
+            currentY = y;
+          } else {
+            // New line
+            if (currentLine.length > 0) {
+              fullText += currentLine.join(' ') + '\n';
+            }
+            currentLine = [text];
+            currentY = y;
+          }
+        }
+        
+        // Add final line
+        if (currentLine.length > 0) {
+          fullText += currentLine.join(' ') + '\n';
+        }
+        
+        fullText += '\n'; // Page separator
+      } catch (pageError) {
+        console.warn(`Error processing page ${i}:`, pageError);
+      }
+    }
+    
+    return fullText;
+  } catch (error) {
+    console.error('PDF text extraction failed:', error);
+    throw new Error('Failed to extract text from PDF');
   }
-  return fullText;
 }
 
+// Enhanced OCR fallback with proper PSM enum import
 async function ocrPdfIfNeeded(file: File): Promise<string> {
-  // Render each page to canvas and OCR with Tesseract only when text extraction is empty
+  try {
   const data = await file.arrayBuffer();
   const doc = await getDocument({ data }).promise;
-  const { createWorker } = await import("tesseract.js");
+    
+    const { createWorker, PSM } = await import("tesseract.js");
   const worker = await createWorker("eng");
+    
+    // Configure Tesseract for better bank statement recognition with proper PSM enum
+    await worker.setParameters({
+      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,/:-()',
+      tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+    });
+    
   try {
     let fullText = "";
+      
     for (let i = 1; i <= doc.numPages; i++) {
+        try {
       const page = await doc.getPage(i);
-      const viewport = page.getViewport({ scale: 2 });
+          const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better OCR
+          
       const canvas = document.createElement("canvas");
       const context = canvas.getContext("2d");
       if (!context) continue;
+          
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      await page.render({ canvasContext: context as unknown as CanvasRenderingContext2D, viewport }).promise;
+          
+          await page.render({ 
+            canvasContext: context as unknown as CanvasRenderingContext2D, 
+            viewport 
+          }).promise;
+          
       const { data: result } = await worker.recognize(canvas);
       fullText += result.text + "\n";
+        } catch (pageError) {
+          console.warn(`Error OCR processing page ${i}:`, pageError);
+        }
     }
+      
     return fullText;
   } finally {
     await worker.terminate();
+    }
+  } catch (error) {
+    console.error('OCR processing failed:', error);
+    throw new Error('Failed to perform OCR on PDF');
   }
 }
 
+// Main parser function with enhanced error handling and fallbacks
 export async function parseBcaStatementPdf(file: File): Promise<ImportedTransaction[]> {
+  try {
+    // First attempt: extract text directly from PDF
   let text = await extractTextWithPdfJs(file);
-  if (!text || text.trim().length < 50) {
-    // Fallback to OCR for image-only PDFs
+    
+    // Check if extracted text is substantial enough
+    const meaningfulText = text.replace(/\s+/g, ' ').trim();
+    
+    if (!meaningfulText || meaningfulText.length < 100) {
+      console.warn('Insufficient text extracted, falling back to OCR');
     text = await ocrPdfIfNeeded(file);
   }
-  return parseBcaStatementText(text);
+    
+    // Parse the extracted text
+    const transactions = parseBcaStatementText(text);
+    
+    if (transactions.length === 0) {
+      console.warn('No transactions found in parsed text. Text sample:', text.substring(0, 500));
+    }
+    
+    return transactions;
+  } catch (error) {
+    console.error('BCA statement parsing failed:', error);
+    throw new Error(`Failed to parse BCA statement: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
-
-
