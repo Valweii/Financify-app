@@ -467,6 +467,15 @@ export const SplitBillScreen = () => {
               />
             </div>
           </div>
+          {/* Preview Current total */}
+          {assignPersonId && (
+              <div className="rounded-lg border border-border/50 p-3 mb-3 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium">{people.find(p => p.id === assignPersonId)?.name || 'Current participant'} current total</div>
+                  <MoneyDisplay amount={personTotals[assignPersonId]?.total_cents || 0} size="md" />
+                </div>
+              </div>
+          )}
           {/* Quick actions */}
           <div className="flex-1 space-y-2 overflow-y-auto">
             {items.length === 0 && (
@@ -573,6 +582,33 @@ export const SplitBillScreen = () => {
       {step === 3 && (
         <Card className="financial-card p-4 flex flex-col">
           <h3 className="text-lg font-semibold mb-3">Summary</h3>
+          {assignPersonId && (
+            (() => {
+              const d = personTotals[assignPersonId] || { subtotal_cents: 0, tax_cents: 0, service_cents: 0, total_cents: 0 } as any;
+              const activePerson = people.find(p => p.id === assignPersonId);
+              return (
+                <div className="rounded-lg border border-border/50 p-3 mb-3 bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium">{activePerson?.name || 'Current participant'} current subtotal</div>
+                      <div className="text-xs text-muted-foreground">Includes tax and service</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-muted-foreground">Subtotal</div>
+                      <MoneyDisplay amount={d.subtotal_cents || 0} size="sm" />
+                      {(d.tax_cents || 0) > 0 && (
+                        <div className="text-xs text-muted-foreground mt-1">+ Tax <MoneyDisplay amount={d.tax_cents || 0} size="sm" /></div>
+                      )}
+                      {(d.service_cents || 0) > 0 && (
+                        <div className="text-xs text-muted-foreground mt-1">+ Service <MoneyDisplay amount={d.service_cents || 0} size="sm" /></div>
+                      )}
+                      <div className="font-medium mt-1"><MoneyDisplay amount={d.total_cents || 0} size="md" /></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
+          )}
           <div className="flex-1 space-y-2 overflow-y-auto">
             {people.map(p => {
               const details = personTotals[p.id];
