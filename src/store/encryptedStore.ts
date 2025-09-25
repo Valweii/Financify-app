@@ -113,6 +113,8 @@ export const useEncryptedStore = (): EncryptedStore => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    console.log('🔍 Loading encrypted transactions for user:', user.id);
+
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
@@ -120,7 +122,12 @@ export const useEncryptedStore = (): EncryptedStore => {
       .eq('is_encrypted', true)
       .order('date', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Error loading encrypted transactions:', error);
+      throw error;
+    }
+
+    console.log('📊 Raw encrypted transactions from DB:', data?.length || 0, data);
 
     const decryptedTransactions: Transaction[] = [];
 

@@ -358,13 +358,20 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
 
       // Also load unencrypted transactions (for backward compatibility and mixed states)
       try {
+        console.log('🔍 Loading unencrypted transactions for user:', user.id);
+        
         const { data, error } = await (supabase.from('transactions') as any)
           .select('*')
           .eq('user_id', user.id)
           .eq('is_encrypted', false)
           .order('date', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Error loading unencrypted transactions:', error);
+          throw error;
+        }
+
+        console.log('📊 Raw unencrypted transactions from DB:', data?.length || 0, data);
         
         const unencryptedTransactions: Transaction[] = ((data as any[]) || []).map(t => ({
           id: t.id,
@@ -387,6 +394,20 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
 
       // Sort all transactions by date (newest first)
       allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      // Debug: Check what's actually in the database
+      try {
+        const { data: allDbTransactions, error: allError } = await (supabase.from('transactions') as any)
+          .select('*')
+          .eq('user_id', user.id)
+          .order('date', { ascending: false });
+        
+        if (!allError) {
+          console.log('🔍 ALL transactions in database:', allDbTransactions?.length || 0, allDbTransactions);
+        }
+      } catch (error) {
+        console.error('Failed to load all transactions for debugging:', error);
+      }
       
       set({ transactions: allTransactions });
       console.log('✅ Total transactions loaded:', allTransactions.length);

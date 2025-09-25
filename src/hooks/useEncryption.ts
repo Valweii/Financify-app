@@ -147,41 +147,54 @@ export const useEncryption = (): UseEncryptionReturn => {
 
   // Check if encryption key is set up on mount and sync encryption state
   useEffect(() => {
-    const checkKeySetup = () => {
+    const checkKeySetup = async () => {
+      console.log('🚀 Starting encryption state check on mount...');
+      
       const hasKey = hasEncryptionKey();
       const encryptionEnabled = isEncryptionEnabledLocal();
       
-      setIsKeySetup(hasKey);
-      setIsKeyLoading(false);
+      console.log('📊 Initial state:', { 
+        hasKey, 
+        encryptionEnabled,
+        localStorage_encryption_enabled: localStorage.getItem('financify_encryption_enabled'),
+        localStorage_encryption_key: !!localStorage.getItem('financify_encryption_key'),
+        localStorage_cached_key: !!localStorage.getItem('financify_cached_key')
+      });
       
-      // Sync encryption state with store
+      setIsKeySetup(hasKey);
+      
+      // If we have a key and encryption is enabled, try to restore the cached key immediately
       if (hasKey && encryptionEnabled) {
-        setEncryptionEnabled(true);
+        try {
+          console.log('🔍 Attempting to restore cached key...');
+          const cached = await loadCachedCryptoKey();
+          if (cached) {
+            setCurrentKey(cached);
+            setEncryptionKey(cached);
+            setEncryptionEnabled(true);
+            console.log('✅ Successfully restored encryption key from cache on mount');
+          } else {
+            // Key exists but cache is missing, encryption is disabled
+            console.log('⚠️ Key exists but cache is missing, disabling encryption');
+            setEncryptionEnabled(false);
+            setEncryptionEnabledLocal(false);
+          }
+        } catch (error) {
+          console.error('❌ Failed to restore cached key:', error);
+          setEncryptionEnabled(false);
+          setEncryptionEnabledLocal(false);
+        }
+      } else {
+        console.log('🔍 No key or encryption disabled:', { hasKey, encryptionEnabled });
+        setEncryptionEnabled(false);
       }
+      
+      console.log('🏁 Finished encryption state check, setting isKeyLoading to false');
+      setIsKeyLoading(false);
     };
     checkKeySetup();
-  }, [setEncryptionEnabled]);
+  }, [setEncryptionEnabled, setEncryptionKey]);
 
-  // Try to restore cached CryptoKey silently on mount (WhatsApp-like UX)
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (currentKey) return;
-      // Ensure the UI waits for auto-restore before showing the gate
-      setIsKeyLoading(true);
-      const cached = await loadCachedCryptoKey();
-      if (!cancelled && cached) {
-        setCurrentKey(cached);
-        try { 
-          setEncryptionKey(cached); 
-          setEncryptionEnabled(true);
-          setEncryptionEnabledLocal(true); // Also persist to localStorage
-        } catch {}
-      }
-      if (!cancelled) setIsKeyLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [currentKey, setEncryptionEnabled, setEncryptionKey]);
 
   // Setup encryption with password
   const setupEncryption = useCallback(async (password: string): Promise<{ success: boolean; backupCodes?: string[]; error?: string }> => {
@@ -418,6 +431,10 @@ export const useEncryption = (): UseEncryptionReturn => {
         setEncryptionEnabled(true);
         setEncryptionEnabledLocal(true);
         
+        // Cache the restored key for future page reloads
+        await cacheCryptoKey(restoredKey);
+        console.log('🔑 Cached restored encryption key for future reloads');
+        
         return { success: true, backupCodes: newCodes };
       } else {
         // Fallback: create new key if original key restoration fails
@@ -445,6 +462,10 @@ export const useEncryption = (): UseEncryptionReturn => {
         setEncryptionKey(newEncKey.key);
         setEncryptionEnabled(true);
         setEncryptionEnabledLocal(true);
+        
+        // Cache the new key for future page reloads
+        await cacheCryptoKey(newEncKey.key);
+        console.log('🔑 Cached new encryption key for future reloads');
         
         return { success: true, backupCodes: newCodes };
       }

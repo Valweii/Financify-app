@@ -186,7 +186,7 @@ export const EncryptionStatus = () => {
             size="sm"
           >
             <Key className="w-4 h-4 mr-1" />
-            View Backup Codes
+            Backup Codes
           </Button>
           <Button 
             onClick={handleSetupFromDevice}
@@ -194,7 +194,7 @@ export const EncryptionStatus = () => {
             size="sm"
           >
             <Smartphone className="w-4 h-4 mr-1" />
-            Setup from Another Device
+            Sync
           </Button>
           <Button 
             onClick={handleDisableEncryption}

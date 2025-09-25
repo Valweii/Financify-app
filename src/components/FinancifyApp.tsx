@@ -38,10 +38,18 @@ export const FinancifyApp = () => {
         if (session?.user) {
           setTimeout(() => {
             loadProfile();
-            // Only load transactions if encryption is disabled
-            // or already unlocked (key present + enabled)
-            if (!isEncryptionEnabled || encryptionKey) {
+            // Wait for encryption state to be initialized before loading transactions
+            console.log('🔄 FinancifyApp (auth change): Checking transaction load conditions:', {
+              isKeyLoading,
+              isEncryptionEnabled,
+              hasEncryptionKey: !!encryptionKey,
+              shouldLoad: !isKeyLoading && (!isEncryptionEnabled || encryptionKey)
+            });
+            if (!isKeyLoading && (!isEncryptionEnabled || encryptionKey)) {
+              console.log('📥 FinancifyApp (auth change): Loading transactions...');
               loadTransactions();
+            } else {
+              console.log('⏸️ FinancifyApp (auth change): Skipping transaction load - waiting for encryption state');
             }
           }, 0);
         }
@@ -58,20 +66,37 @@ export const FinancifyApp = () => {
       if (session?.user) {
         setTimeout(() => {
           loadProfile();
-          if (!isEncryptionEnabled || encryptionKey) {
+          // Wait for encryption state to be initialized before loading transactions
+          console.log('🔄 FinancifyApp: Checking transaction load conditions:', {
+            isKeyLoading,
+            isEncryptionEnabled,
+            hasEncryptionKey: !!encryptionKey,
+            shouldLoad: !isKeyLoading && (!isEncryptionEnabled || encryptionKey)
+          });
+          if (!isKeyLoading && (!isEncryptionEnabled || encryptionKey)) {
+            console.log('📥 FinancifyApp: Loading transactions...');
             loadTransactions();
+          } else {
+            console.log('⏸️ FinancifyApp: Skipping transaction load - waiting for encryption state');
           }
         }, 0);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [setUser, setSession, loadTransactions, loadProfile, isEncryptionEnabled, encryptionKey]);
+  }, [setUser, setSession, loadTransactions, loadProfile, isEncryptionEnabled, encryptionKey, isKeyLoading]);
 
   // After unlock: when encryption is enabled and key is available, ensure we load encrypted transactions immediately.
   useEffect(() => {
+    console.log('🔄 FinancifyApp (encryption state change):', {
+      isAuthenticated,
+      isEncryptionEnabled,
+      hasEncryptionKey: !!encryptionKey
+    });
+    
     if (!isAuthenticated) return;
     if (isEncryptionEnabled && encryptionKey) {
+      console.log('📥 FinancifyApp (encryption state change): Loading transactions due to encryption state change...');
       setTimeout(() => {
         loadTransactions();
       }, 0);
