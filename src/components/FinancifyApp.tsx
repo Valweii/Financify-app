@@ -20,7 +20,9 @@ export const FinancifyApp = () => {
     setUser, 
     setSession, 
     loadTransactions, 
-    loadProfile 
+    loadProfile,
+    isEncryptionEnabled,
+    encryptionKey
   } = useFinancifyStore();
   const { isKeySetup, isKeyLoading } = useEncryption();
 
@@ -35,7 +37,11 @@ export const FinancifyApp = () => {
         if (session?.user) {
           setTimeout(() => {
             loadProfile();
-            loadTransactions();
+            // Only load transactions if encryption is disabled
+            // or already unlocked (key present + enabled)
+            if (!isEncryptionEnabled || encryptionKey) {
+              loadTransactions();
+            }
           }, 0);
         }
       }
@@ -51,7 +57,9 @@ export const FinancifyApp = () => {
       if (session?.user) {
         setTimeout(() => {
           loadProfile();
-          loadTransactions();
+          if (!isEncryptionEnabled || encryptionKey) {
+            loadTransactions();
+          }
         }, 0);
       }
     });
@@ -78,8 +86,9 @@ export const FinancifyApp = () => {
     return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
   }
 
-  // Show encryption setup if user is authenticated but encryption is not set up
-  if (isAuthenticated && !isKeyLoading && !isKeySetup) {
+  // Show encryption setup/unlock if needed before entering the app
+  const needsEncryptionGate = isAuthenticated && !isKeyLoading && (!isKeySetup || (isKeySetup && (!isEncryptionEnabled || !encryptionKey)));
+  if (needsEncryptionGate) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-md mx-auto bg-background min-h-screen">

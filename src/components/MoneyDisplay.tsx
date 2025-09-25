@@ -16,17 +16,13 @@ export const MoneyDisplay = ({
   size = "md"
 }: MoneyDisplayProps) => {
   const formatAmount = (value: number) => {
-    const absValue = Math.abs(value);
-
-    // Format as Indonesian Rupiah
-    const formatted = new Intl.NumberFormat('id-ID', {
+    // Format as Indonesian Rupiah without forcing absolute value
+    return new Intl.NumberFormat('id-ID', {
       style: 'currency',
       currency: currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(absValue);
-
-    return formatted;
+    }).format(value);
   };
 
   const getSizeClass = () => {

@@ -4,14 +4,23 @@ import { useFinancifyStore } from "@/store";
 import { User, LogOut, Shield, HelpCircle, ExternalLink, Moon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { EncryptionStatus } from "@/components/EncryptionStatus";
 import { EncryptionSetup } from "@/components/EncryptionSetup";
 import { useEncryption } from "@/hooks/useEncryption";
 
 export const SettingsScreen = () => {
-  const { user, profile, signOut } = useFinancifyStore();
+  const { user, profile, signOut, setProfile } = useFinancifyStore();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'light');
   const { isKeySetup, isKeyLoading } = useEncryption();
+  const { toast } = useToast();
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [fullName, setFullName] = useState(profile?.full_name || "");
+  const [email, setEmail] = useState(user?.email || "");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -33,7 +42,11 @@ export const SettingsScreen = () => {
       icon: User,
       title: "Profile Information",
       description: "Manage your account details",
-      action: () => {},
+      action: () => {
+        setFullName(profile?.full_name || "");
+        setEmail(user?.email || "");
+        setIsProfileOpen(true);
+      },
       disabled: false
     },
     {
@@ -141,12 +154,65 @@ export const SettingsScreen = () => {
               {item.title === 'Appearance' ? (
                 <Switch checked={theme === 'dark'} onCheckedChange={(v) => setTheme(v ? 'dark' : 'light')} />
               ) : (
-                !item.disabled && <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                !item.disabled && item.title !== 'Profile Information' && <ExternalLink className="w-4 h-4 text-muted-foreground" />
               )}
             </div>
           </Card>
         ))}
       </div>
+
+      {/* Profile Dialog */}
+      <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Profile Information</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div>
+              <label className="text-sm text-muted-foreground">Full Name</label>
+              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground">Email</label>
+              <Input value={email} onChange={(e) => setEmail(e.target.value)} disabled />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={async () => {
+                if (!user) return;
+                const name = fullName.trim();
+                if (!name) {
+                  toast({ title: 'Name is required', variant: 'destructive' });
+                  return;
+                }
+                setIsSavingProfile(true);
+                try {
+                  const { data, error } = await supabase
+                    .from('profiles')
+                    .update({ full_name: name })
+                    .eq('id', user.id)
+                    .select('*')
+                    .maybeSingle();
+                  if (error) throw error;
+                  if (data) setProfile(data as any);
+                  toast({ title: 'Profile updated' });
+                  setIsProfileOpen(false);
+                } catch (e) {
+                  console.error(e);
+                  toast({ title: 'Failed to update profile', variant: 'destructive' });
+                } finally {
+                  setIsSavingProfile(false);
+                }
+              }}
+              disabled={isSavingProfile}
+              className="btn-primary"
+            >
+              {isSavingProfile ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Sign Out */}
       {user && (

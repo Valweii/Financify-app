@@ -46,10 +46,10 @@ export const useEncryption = (): UseEncryptionReturn => {
   // Check if encryption key is set up on mount
   useEffect(() => {
     const checkKeySetup = () => {
-      setIsKeySetup(hasEncryptionKey());
+      const hasKey = hasEncryptionKey();
+      setIsKeySetup(hasKey);
       setIsKeyLoading(false);
     };
-    
     checkKeySetup();
   }, []);
 

@@ -106,7 +106,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
             amount={totalBalance} 
             size="xl" 
             showSign
-            className="text-foreground"
+            className={totalBalance < 0 ? "text-expense" : "text-income"}
           />
           <p className="text-xs text-muted-foreground">
             As of {new Date().toLocaleDateString('id-ID')}

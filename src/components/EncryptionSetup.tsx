@@ -37,6 +37,16 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
   
   const { setEncryptionKey, setEncryptionEnabled, loadTransactions } = useFinancifyStore();
 
+  // If encryption is already set up and the key becomes available (after unlock on refresh),
+  // ensure we load transactions automatically.
+  useEffect(() => {
+    if (currentKey) {
+      setEncryptionKey(currentKey);
+      // Load immediately after key availability to populate app state on refresh
+      loadTransactions();
+    }
+  }, [currentKey, setEncryptionKey, loadTransactions]);
+
   // Sync currentKey with store whenever it changes
   useEffect(() => {
     if (currentKey) {
