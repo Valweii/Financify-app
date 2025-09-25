@@ -164,8 +164,8 @@ export const SplitBillScreen = () => {
 
   const addItem = () => {
     const name = draftItem.name.trim();
-    if (!name || draftItem.price_cents <= 0 || draftItem.participants.length === 0) return;
-    setItems(prev => [...prev, { id: crypto.randomUUID(), name, price_cents: draftItem.price_cents, participants: draftItem.participants }]);
+    if (!name || draftItem.price_cents <= 0) return;
+    setItems(prev => [...prev, { id: crypto.randomUUID(), name, price_cents: draftItem.price_cents, participants: [] }]);
     setDraftItem({ name: "", price_cents: 0, participants: [] });
     setIsAddItemOpen(false);
   };
@@ -178,14 +178,6 @@ export const SplitBillScreen = () => {
 
   const removeItem = (id: string) => setItems(prev => prev.filter(it => it.id !== id));
 
-  const toggleParticipant = (personId: string) => {
-    setDraftItem(prev => ({
-      ...prev,
-      participants: prev.participants.includes(personId)
-        ? prev.participants.filter(id => id !== personId)
-        : [...prev.participants, personId]
-    }));
-  };
 
   const togglePersonInItem = (itemId: string, personId: string) => {
     setItems(prev => prev.map(it => {
@@ -381,17 +373,6 @@ export const SplitBillScreen = () => {
                     <label className="text-sm text-muted-foreground">Price (IDR)</label>
                     <Input type="number" min={0} value={draftItem.price_cents} onChange={(e) => setDraftItem({ ...draftItem, price_cents: Math.max(0, parseInt(e.target.value || '0', 10)) })} />
                   </div>
-                  <div>
-                    <label className="text-sm text-muted-foreground">Participants</label>
-                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-auto">
-                      {people.map(p => (
-                        <label key={p.id} className="flex items-center gap-2 text-sm">
-                          <input type="checkbox" checked={draftItem.participants.includes(p.id)} onChange={() => toggleParticipant(p.id)} />
-                          {p.name}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
                 </div>
                 <DialogFooter>
                   <Button onClick={addItem} className="btn-primary">Save</Button>
@@ -582,33 +563,6 @@ export const SplitBillScreen = () => {
       {step === 3 && (
         <Card className="financial-card p-4 flex flex-col">
           <h3 className="text-lg font-semibold mb-3">Summary</h3>
-          {assignPersonId && (
-            (() => {
-              const d = personTotals[assignPersonId] || { subtotal_cents: 0, tax_cents: 0, service_cents: 0, total_cents: 0 } as any;
-              const activePerson = people.find(p => p.id === assignPersonId);
-              return (
-                <div className="rounded-lg border border-border/50 p-3 mb-3 bg-muted/30">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium">{activePerson?.name || 'Current participant'} current subtotal</div>
-                      <div className="text-xs text-muted-foreground">Includes tax and service</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-muted-foreground">Subtotal</div>
-                      <MoneyDisplay amount={d.subtotal_cents || 0} size="sm" />
-                      {(d.tax_cents || 0) > 0 && (
-                        <div className="text-xs text-muted-foreground mt-1">+ Tax <MoneyDisplay amount={d.tax_cents || 0} size="sm" /></div>
-                      )}
-                      {(d.service_cents || 0) > 0 && (
-                        <div className="text-xs text-muted-foreground mt-1">+ Service <MoneyDisplay amount={d.service_cents || 0} size="sm" /></div>
-                      )}
-                      <div className="font-medium mt-1"><MoneyDisplay amount={d.total_cents || 0} size="md" /></div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()
-          )}
           <div className="flex-1 space-y-2 overflow-y-auto">
             {people.map(p => {
               const details = personTotals[p.id];
@@ -620,8 +574,7 @@ export const SplitBillScreen = () => {
                       <span className="font-medium truncate">{p.name}</span>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-muted-foreground">Subtotal</div>
-                      <MoneyDisplay amount={details?.subtotal_cents || 0} size="sm" />
+                      <div className="text-xs text-muted-foreground">Total</div>
                       {(details?.tax_cents || 0) > 0 && (
                         <div className="text-xs text-muted-foreground mt-1">+ Tax <MoneyDisplay amount={details?.tax_cents || 0} size="sm" /></div>
                       )}

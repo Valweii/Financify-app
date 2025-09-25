@@ -4,10 +4,14 @@ import { useFinancifyStore } from "@/store";
 import { User, LogOut, Shield, HelpCircle, ExternalLink, Moon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Switch } from "@/components/ui/switch";
+import { EncryptionStatus } from "@/components/EncryptionStatus";
+import { EncryptionSetup } from "@/components/EncryptionSetup";
+import { useEncryption } from "@/hooks/useEncryption";
 
 export const SettingsScreen = () => {
   const { user, profile, signOut } = useFinancifyStore();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'light');
+  const { isKeySetup, isKeyLoading } = useEncryption();
 
   useEffect(() => {
     const root = document.documentElement;
@@ -93,6 +97,29 @@ export const SettingsScreen = () => {
             </div>
           </div>
         </Card>
+      )}
+
+      {/* Encryption Section */}
+      {user && (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold">Security & Privacy</h2>
+            <p className="text-sm text-muted-foreground">Protect your financial data with end-to-end encryption</p>
+          </div>
+          
+          {isKeyLoading ? (
+            <Card className="financial-card p-6">
+              <div className="flex items-center justify-center space-y-4">
+                <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                <p className="text-sm text-muted-foreground">Loading encryption status...</p>
+              </div>
+            </Card>
+          ) : isKeySetup ? (
+            <EncryptionStatus />
+          ) : (
+            <EncryptionSetup />
+          )}
+        </div>
       )}
 
       {/* Settings Items */}

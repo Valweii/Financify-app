@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 import type { Tables } from '@/integrations/supabase/types';
+// Removed direct import to avoid circular dependency
 
 export interface Transaction {
   id: string;
@@ -35,6 +36,10 @@ interface FinancifyStore {
   transactions: Transaction[];
   importedDraft: ImportedTransaction[];
   
+  // Encryption state
+  isEncryptionEnabled: boolean;
+  encryptionKey: CryptoKey | null;
+  
   // UI state
   isLoading: boolean;
   
@@ -47,6 +52,10 @@ interface FinancifyStore {
   setImportedDraft: (transactions: ImportedTransaction[]) => void;
   clearImportedDraft: () => void;
   setLoading: (loading: boolean) => void;
+  
+  // Encryption actions
+  setEncryptionKey: (key: CryptoKey | null) => void;
+  setEncryptionEnabled: (enabled: boolean) => void;
   
   // Supabase actions
   loadTransactions: () => Promise<void>;
@@ -74,6 +83,8 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   isAuthenticated: false,
   transactions: [],
   importedDraft: [],
+  isEncryptionEnabled: false,
+  encryptionKey: null,
   isLoading: false,
   
   // Actions
@@ -98,24 +109,39 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   
   setLoading: (isLoading) => set({ isLoading }),
   
+  // Encryption actions
+  setEncryptionKey: (encryptionKey) => set({ encryptionKey }),
+  
+  setEncryptionEnabled: (isEncryptionEnabled) => set({ isEncryptionEnabled }),
+  
   // Supabase actions
   loadTransactions: async () => {
-    const { user } = get();
+    const { user, isEncryptionEnabled, encryptionKey } = get();
     if (!user) return;
     
     set({ isLoading: true });
     try {
-      const { data, error } = await supabase
-        .from('transactions')
+      // Use encryption if enabled
+      if (isEncryptionEnabled && encryptionKey) {
+        const { useEncryptedStore } = await import('./encryptedStore');
+        const encryptedStore = useEncryptedStore();
+        const encryptedTransactions = await encryptedStore.loadEncryptedTransactions(encryptionKey);
+        set({ transactions: encryptedTransactions });
+        return;
+      }
+
+      // Original unencrypted logic
+      const { data, error } = await (supabase.from('transactions') as any)
         .select('*')
         .eq('user_id', user.id)
+        .eq('is_encrypted', false) // Only load unencrypted transactions
         .order('date', { ascending: false });
 
       if (error) throw error;
       
-      const transactions: Transaction[] = (data || []).map(t => ({
+      const transactions: Transaction[] = ((data as any[]) || []).map(t => ({
         id: t.id,
-        date: t.date,
+        date: (t.date || '').split('T')[0],
         description: t.description || '',
         type: (t.type as 'debit' | 'credit') || 'debit',
         amount_cents: t.amount_cents || 0,
@@ -135,11 +161,29 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   },
 
   saveTransactions: async (importedTransactions) => {
-    const { user, transactions } = get();
+    const { user, transactions, isEncryptionEnabled, encryptionKey } = get();
     if (!user) throw new Error('User not authenticated');
     
     set({ isLoading: true });
     try {
+      // Use encryption if enabled
+      if (isEncryptionEnabled && encryptionKey) {
+        const { useEncryptedStore } = await import('./encryptedStore');
+        const encryptedStore = useEncryptedStore();
+        
+        // Add date field to each transaction for encryption
+        const transactionsWithDate = importedTransactions.map(t => ({
+          ...t,
+          date: t.date
+        }));
+        
+        await encryptedStore.saveEncryptedTransactions(transactionsWithDate, encryptionKey);
+        // Reload transactions to get the new encrypted ones
+        await get().loadTransactions();
+        return;
+      }
+
+      // Original unencrypted logic
       // Calculate running balance for new transactions
       const lastBalance = transactions.length > 0 ? transactions[0].running_balance_cents : 0;
       let runningBalance = lastBalance;
@@ -161,6 +205,7 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
           category: t.category || 'Other',
           running_balance_cents: runningBalance,
           source: 'PDF Import',
+          is_encrypted: false, // Explicitly mark as unencrypted
         };
       });
 
@@ -195,11 +240,22 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   },
 
   createTransaction: async (transaction) => {
-    const { user, transactions } = get();
+    const { user, transactions, isEncryptionEnabled, encryptionKey } = get();
     if (!user) throw new Error('User not authenticated');
 
     set({ isLoading: true });
     try {
+      // Use encryption if enabled
+      if (isEncryptionEnabled && encryptionKey) {
+        const { useEncryptedStore } = await import('./encryptedStore');
+        const encryptedStore = useEncryptedStore();
+        await encryptedStore.createEncryptedTransaction(transaction, encryptionKey);
+        // Reload transactions to get the new encrypted one
+        await get().loadTransactions();
+        return;
+      }
+
+      // Original unencrypted logic
       const lastBalance = transactions.length > 0 ? transactions[0].running_balance_cents : 0;
       const runningBalance = transaction.type === 'credit'
         ? lastBalance + transaction.amount_cents
@@ -217,6 +273,7 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
           category: transaction.category || 'Other',
           running_balance_cents: runningBalance,
           source: 'Manual',
+          is_encrypted: false, // Explicitly mark as unencrypted
         })
         .select()
         .single();

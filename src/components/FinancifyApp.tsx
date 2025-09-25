@@ -8,6 +8,8 @@ import { SettingsScreen } from "@/screens/SettingsScreen";
 import { AuthScreen } from "./AuthScreen";
 import { useFinancifyStore } from "@/store";
 import { supabase } from "@/integrations/supabase/client";
+import { useEncryption } from "@/hooks/useEncryption";
+import { EncryptionSetup } from "@/components/EncryptionSetup";
 
 export const FinancifyApp = () => {
   const [activeTab, setActiveTab] = useState<NavigationTab>("dashboard");
@@ -20,6 +22,7 @@ export const FinancifyApp = () => {
     loadTransactions, 
     loadProfile 
   } = useFinancifyStore();
+  const { isKeySetup, isKeyLoading } = useEncryption();
 
   useEffect(() => {
     // Set up auth state listener
@@ -73,6 +76,33 @@ export const FinancifyApp = () => {
 
   if (!isAuthenticated) {
     return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
+  }
+
+  // Show encryption setup if user is authenticated but encryption is not set up
+  if (isAuthenticated && !isKeyLoading && !isKeySetup) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="max-w-md mx-auto bg-background min-h-screen">
+          {/* Header with app name */}
+          <div className="sticky top-0 bg-background/80 backdrop-blur-sm border-b border-border z-40">
+            <div className="px-4 py-4">
+              <h1 className="text-xl font-bold text-primary">Financify</h1>
+            </div>
+          </div>
+
+          {/* Encryption Setup */}
+          <main className="px-4 py-4">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <h1 className="text-2xl font-bold">Welcome to Financify</h1>
+                <p className="text-muted-foreground">Set up end-to-end encryption to protect your financial data</p>
+              </div>
+              <EncryptionSetup />
+            </div>
+          </main>
+        </div>
+      </div>
+    );
   }
 
   const renderScreen = () => {
