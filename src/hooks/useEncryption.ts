@@ -18,6 +18,8 @@ import {
   storeEncryptionKey,
   cacheCryptoKey,
   loadCachedCryptoKey,
+  storeEncryptedOriginalKey,
+  restoreOriginalKeyWithBackupCode,
   type EncryptionKey,
   type EncryptedData
 } from '@/lib/encryption';
@@ -182,6 +184,10 @@ export const useEncryption = (): UseEncryptionReturn => {
       const backupCodes = generateBackupCodes();
       storeBackupCodes(backupCodes);
       
+      // Store the original encryption key encrypted with backup codes
+      console.log('🔐 Storing original key encrypted with backup codes...');
+      await storeEncryptedOriginalKey(encryptionKey.key, backupCodes);
+      
       // Store backup code hashes in Supabase for cross-device recovery
       console.log('🔐 Storing backup code hashes in Supabase...');
       await storeBackupCodeHashes(backupCodes);
@@ -341,23 +347,56 @@ export const useEncryption = (): UseEncryptionReturn => {
         return { success: false, error: 'Invalid backup code' };
       }
 
-      // Create new key and overwrite verifier and backup codes
-      const newEncKey = await generateEncryptionKey(newPassword);
-      storeEncryptionKey(newEncKey);
-
-      const verifierPlain = { t: 'financify_key_verifier', ts: Date.now(), n: Math.random() };
-      const verifierEncrypted = await encryptData(verifierPlain, newEncKey.key);
-      localStorage.setItem('financify_key_verifier', JSON.stringify(verifierEncrypted));
-
-      const newCodes = generateBackupCodes();
-      storeBackupCodes(newCodes);
+      // Try to restore the original encryption key using the backup code
+      console.log('🔐 Attempting to restore original key with backup code...');
+      const restoredKey = await restoreOriginalKeyWithBackupCode(normalized);
       
-      // Store new backup code hashes in Supabase
-      await storeBackupCodeHashes(newCodes);
+      if (restoredKey) {
+        console.log('✅ Successfully restored original encryption key');
+        
+        // Use the restored original key directly
+        setCurrentKey(restoredKey);
+        setIsKeySetup(true);
+        
+        // Update the verifier with the restored key
+        const verifierPlain = { t: 'financify_key_verifier', ts: Date.now(), n: Math.random() };
+        const verifierEncrypted = await encryptData(verifierPlain, restoredKey);
+        localStorage.setItem('financify_key_verifier', JSON.stringify(verifierEncrypted));
+        
+        // Generate new backup codes and store them
+        const newCodes = generateBackupCodes();
+        storeBackupCodes(newCodes);
+        
+        // Store the restored original key encrypted with new backup codes
+        await storeEncryptedOriginalKey(restoredKey, newCodes);
+        
+        // Store new backup code hashes in Supabase
+        await storeBackupCodeHashes(newCodes);
+        
+        return { success: true, backupCodes: newCodes };
+      } else {
+        // Fallback: create new key if original key restoration fails
+        console.log('⚠️ Could not restore original key, creating new key...');
+        const newEncKey = await generateEncryptionKey(newPassword);
+        storeEncryptionKey(newEncKey);
 
-      setCurrentKey(newEncKey.key);
-      setIsKeySetup(true);
-      return { success: true, backupCodes: newCodes };
+        const verifierPlain = { t: 'financify_key_verifier', ts: Date.now(), n: Math.random() };
+        const verifierEncrypted = await encryptData(verifierPlain, newEncKey.key);
+        localStorage.setItem('financify_key_verifier', JSON.stringify(verifierEncrypted));
+
+        const newCodes = generateBackupCodes();
+        storeBackupCodes(newCodes);
+        
+        // Store the new key encrypted with new backup codes
+        await storeEncryptedOriginalKey(newEncKey.key, newCodes);
+        
+        // Store new backup code hashes in Supabase
+        await storeBackupCodeHashes(newCodes);
+
+        setCurrentKey(newEncKey.key);
+        setIsKeySetup(true);
+        return { success: true, backupCodes: newCodes };
+      }
     } catch (e) {
       console.error('Failed to reset with backup code:', e);
       return { success: false, error: 'Failed to reset encryption' };

@@ -40,7 +40,7 @@ export const deriveKeyFromPassword = async (
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt: salt,
+      salt: new Uint8Array(salt),
       iterations: 100000,
       hash: 'SHA-256'
     },
@@ -127,11 +127,11 @@ export const decryptData = async (
 
 export const exportRawKey = async (key: CryptoKey): Promise<Uint8Array> => {
   const raw = await crypto.subtle.exportKey('raw', key);
-  return new Uint8Array(raw);
+  return new Uint8Array(raw as ArrayBuffer);
 };
 
 export const importRawKey = async (raw: Uint8Array): Promise<CryptoKey> => {
-  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+  return crypto.subtle.importKey('raw', raw.buffer as ArrayBuffer, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
 };
 
 // Create or load a device wrapping key (stored as raw bytes in localStorage)
@@ -144,14 +144,14 @@ const getDeviceWrappingKey = async (): Promise<CryptoKey> => {
   } else {
     raw = new Uint8Array(JSON.parse(rawStr));
   }
-  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  return crypto.subtle.importKey('raw', raw.buffer as ArrayBuffer, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 };
 
 export const cacheCryptoKey = async (key: CryptoKey): Promise<void> => {
   const wrappingKey = await getDeviceWrappingKey();
   const raw = await exportRawKey(key);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrappingKey, raw);
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrappingKey, raw.buffer as ArrayBuffer);
   localStorage.setItem('financify_cached_key', JSON.stringify({
     iv: Array.from(iv),
     data: Array.from(new Uint8Array(encrypted))
@@ -220,7 +220,8 @@ export const clearEncryptionKey = (): void => {
 export const generateBackupCodes = (): string[] => {
   const codes: string[] = [];
   for (let i = 0; i < 8; i++) {
-    const code = crypto.getRandomValues(new Uint8Array(4))
+    const randomBytes = crypto.getRandomValues(new Uint8Array(4));
+    const code = Array.from(randomBytes)
       .map(b => b.toString(16).padStart(2, '0'))
       .join('')
       .toUpperCase();
@@ -246,6 +247,85 @@ export const loadBackupCodes = (): string[] | null => {
   try {
     return JSON.parse(stored);
   } catch {
+    return null;
+  }
+};
+
+/**
+ * Derive key from backup code for encrypting/decrypting the original encryption key
+ */
+export const deriveKeyFromBackupCode = async (backupCode: string): Promise<CryptoKey> => {
+  // Use a fixed salt for backup code derivation to ensure consistency
+  const salt = new TextEncoder().encode('financify_backup_code_salt');
+  
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(backupCode),
+    'PBKDF2',
+    false,
+    ['deriveBits', 'deriveKey']
+  );
+
+  return crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: 100000,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    true,
+    ['encrypt', 'decrypt']
+  );
+};
+
+/**
+ * Store the original encryption key encrypted with backup codes
+ */
+export const storeEncryptedOriginalKey = async (originalKey: CryptoKey, backupCodes: string[]): Promise<void> => {
+  try {
+    // Export the original key as raw bytes
+    const rawKey = await exportRawKey(originalKey);
+    
+    // Encrypt the original key with each backup code
+    const encryptedKeys = await Promise.all(
+      backupCodes.map(async (code) => {
+        const backupKey = await deriveKeyFromBackupCode(code);
+        const encrypted = await encryptData(Array.from(rawKey), backupKey);
+        return { code, encrypted };
+      })
+    );
+    
+    // Store in localStorage
+    localStorage.setItem('financify_encrypted_original_key', JSON.stringify(encryptedKeys));
+  } catch (error) {
+    console.error('Failed to store encrypted original key:', error);
+  }
+};
+
+/**
+ * Restore the original encryption key using a backup code
+ */
+export const restoreOriginalKeyWithBackupCode = async (backupCode: string): Promise<CryptoKey | null> => {
+  try {
+    const stored = localStorage.getItem('financify_encrypted_original_key');
+    if (!stored) return null;
+    
+    const encryptedKeys = JSON.parse(stored);
+    const backupKey = await deriveKeyFromBackupCode(backupCode);
+    
+    // Find the encrypted key for this backup code
+    const keyData = encryptedKeys.find((item: any) => item.code === backupCode);
+    if (!keyData) return null;
+    
+    // Decrypt the original key
+    const decryptedData = await decryptData(keyData.encrypted, backupKey);
+    const rawKey = new Uint8Array(decryptedData);
+    
+    return importRawKey(rawKey);
+  } catch (error) {
+    console.error('Failed to restore original key:', error);
     return null;
   }
 };
