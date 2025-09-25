@@ -59,9 +59,12 @@ export const SettingsScreen = () => {
     {
       icon: Shield,
       title: "Security & Privacy",
-      description: "Password, 2FA, and privacy settings",
-      action: () => {},
-      disabled: true
+      description: "Encryption setup and backup code",
+      action: () => {
+        const el = document.getElementById('encryption-section');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      },
+      disabled: false
     },
     {
       icon: HelpCircle,
@@ -114,7 +117,7 @@ export const SettingsScreen = () => {
 
       {/* Encryption Section */}
       {user && (
-        <div className="space-y-4">
+        <div id="encryption-section" className="space-y-4">
           <div className="space-y-2">
             <h2 className="text-lg font-semibold">Security & Privacy</h2>
             <p className="text-sm text-muted-foreground">Protect your financial data with end-to-end encryption</p>

@@ -22,6 +22,7 @@ import {
   type EncryptedData
 } from '@/lib/encryption';
 import { useFinancifyStore } from '@/store';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface UseEncryptionReturn {
   // Key management
@@ -43,6 +44,78 @@ export interface UseEncryptionReturn {
   getBackupCodes: () => string[] | null;
   clearBackupCodes: () => void;
 }
+
+// Helper function to hash backup codes for storage
+const hashBackupCode = async (code: string): Promise<string> => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(code);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+// Helper function to store backup code hashes in Supabase
+const storeBackupCodeHashes = async (codes: string[]): Promise<void> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No authenticated user');
+
+    // Hash all backup codes
+    const hashedCodes = await Promise.all(codes.map(code => hashBackupCode(code)));
+
+    // Store hashes in Supabase
+    const { error } = await (supabase as any)
+      .from('backup_codes')
+      .upsert(
+        hashedCodes.map(hash => ({
+          user_id: user.id,
+          code_hash: hash,
+          created_at: new Date().toISOString()
+        })),
+        { onConflict: 'user_id,code_hash' }
+      );
+
+    if (error) {
+      console.error('Failed to store backup code hashes:', error);
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error storing backup code hashes:', error);
+    // Don't throw - this is a fallback feature
+  }
+};
+
+// Helper function to validate backup code against Supabase hashes
+const validateBackupCodeHash = async (code: string): Promise<boolean> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const codeHash = await hashBackupCode(code);
+    
+    const { data, error } = await (supabase as any)
+      .from('backup_codes')
+      .select('id, used_at')
+      .eq('user_id', user.id)
+      .eq('code_hash', codeHash)
+      .single();
+
+    if (error || !data) return false;
+    
+    // Mark as used if not already used
+    if (!data.used_at) {
+      await (supabase as any)
+        .from('backup_codes')
+        .update({ used_at: new Date().toISOString() })
+        .eq('id', data.id);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error validating backup code hash:', error);
+    return false;
+  }
+};
 
 export const useEncryption = (): UseEncryptionReturn => {
   const [isKeySetup, setIsKeySetup] = useState(false);
@@ -108,6 +181,10 @@ export const useEncryption = (): UseEncryptionReturn => {
       console.log('🔐 Generating backup codes...');
       const backupCodes = generateBackupCodes();
       storeBackupCodes(backupCodes);
+      
+      // Store backup code hashes in Supabase for cross-device recovery
+      console.log('🔐 Storing backup code hashes in Supabase...');
+      await storeBackupCodeHashes(backupCodes);
       
       // Set current key for immediate use
       console.log('🔐 Setting current key...');
@@ -244,9 +321,23 @@ export const useEncryption = (): UseEncryptionReturn => {
   const resetWithBackupCode = useCallback(async (code: string, newPassword: string): Promise<{ success: boolean; backupCodes?: string[]; error?: string }> => {
     try {
       setIsKeyLoading(true);
-      const codes = loadBackupCodes() || [];
-      const normalized = code.trim();
-      if (!normalized || !codes.includes(normalized)) {
+      const normalized = (code || '').toString().replace(/\s+/g, '');
+      
+      if (!normalized) {
+        return { success: false, error: 'Invalid backup code' };
+      }
+
+      // First try local validation (for same-device recovery)
+      const localCodes = (loadBackupCodes() || []).map(c => (c || '').toString().replace(/\s+/g, ''));
+      let isValidCode = localCodes.includes(normalized);
+      
+      // If not found locally, try Supabase validation (for cross-device recovery)
+      if (!isValidCode) {
+        console.log('🔍 Code not found locally, checking Supabase...');
+        isValidCode = await validateBackupCodeHash(normalized);
+      }
+      
+      if (!isValidCode) {
         return { success: false, error: 'Invalid backup code' };
       }
 
@@ -260,6 +351,9 @@ export const useEncryption = (): UseEncryptionReturn => {
 
       const newCodes = generateBackupCodes();
       storeBackupCodes(newCodes);
+      
+      // Store new backup code hashes in Supabase
+      await storeBackupCodeHashes(newCodes);
 
       setCurrentKey(newEncKey.key);
       setIsKeySetup(true);

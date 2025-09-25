@@ -10,20 +10,22 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useEncryption } from '@/hooks/useEncryption';
 import { useFinancifyStore } from '@/store';
-import { Shield, Lock, Key, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Shield, Lock, Key, AlertTriangle, CheckCircle, Smartphone } from 'lucide-react';
 
 export const EncryptionStatus = () => {
   const [showDisableWarning, setShowDisableWarning] = useState(false);
+  const [showSetupFromDevice, setShowSetupFromDevice] = useState(false);
   
   const { toast } = useToast();
   const { 
     isKeySetup, 
     clearEncryption, 
     getBackupCodes,
-    clearBackupCodes 
+    clearBackupCodes,
+    resetWithBackupCode
   } = useEncryption();
   
-  const { isEncryptionEnabled, setEncryptionEnabled, setEncryptionKey } = useFinancifyStore();
+  const { isEncryptionEnabled, setEncryptionEnabled, setEncryptionKey, loadTransactions } = useFinancifyStore();
 
   const handleDisableEncryption = () => {
     setShowDisableWarning(true);
@@ -50,6 +52,31 @@ export const EncryptionStatus = () => {
       toast({
         title: "Backup codes copied",
         description: "Your backup codes have been copied to clipboard.",
+      });
+    }
+  };
+
+  const handleSetupFromDevice = () => {
+    setShowSetupFromDevice(true);
+  };
+
+  const handleResetWithBackupCode = async (backupCode: string, newPassword: string) => {
+    if (!resetWithBackupCode) return;
+    
+    const result = await resetWithBackupCode(backupCode, newPassword);
+    if (result.success) {
+      setEncryptionEnabled(true);
+      setShowSetupFromDevice(false);
+      toast({ 
+        title: 'Encryption reset', 
+        description: 'Your encryption key has been restored from backup code.' 
+      });
+      try { await loadTransactions(); } catch {}
+    } else {
+      toast({ 
+        title: 'Reset failed', 
+        description: result.error || 'Invalid backup code.', 
+        variant: 'destructive' 
       });
     }
   };
@@ -114,6 +141,10 @@ export const EncryptionStatus = () => {
     );
   }
 
+  if (showSetupFromDevice) {
+    return <SetupFromDeviceForm onCancel={() => setShowSetupFromDevice(false)} onComplete={handleResetWithBackupCode} />;
+  }
+
   return (
     <Card className="financial-card p-4">
       <div className="space-y-4">
@@ -152,6 +183,14 @@ export const EncryptionStatus = () => {
             View Backup Codes
           </Button>
           <Button 
+            onClick={handleSetupFromDevice}
+            variant="outline"
+            size="sm"
+          >
+            <Smartphone className="w-4 h-4 mr-1" />
+            Setup from Another Device
+          </Button>
+          <Button 
             onClick={handleDisableEncryption}
             variant="outline"
             size="sm"
@@ -159,6 +198,106 @@ export const EncryptionStatus = () => {
           >
             <AlertTriangle className="w-4 h-4 mr-1" />
             Disable
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+// Setup from Another Device Form Component
+interface SetupFromDeviceFormProps {
+  onCancel: () => void;
+  onComplete: (backupCode: string, newPassword: string) => Promise<void>;
+}
+
+const SetupFromDeviceForm = ({ onCancel, onComplete }: SetupFromDeviceFormProps) => {
+  const [backupCode, setBackupCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!backupCode.trim()) {
+      return;
+    }
+    if (newPassword.length < 8) {
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await onComplete(backupCode, newPassword);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Card className="financial-card p-6">
+      <div className="space-y-4">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Smartphone className="w-8 h-8 text-primary" />
+          </div>
+          <h3 className="text-lg font-semibold">Setup from Another Device</h3>
+          <p className="text-sm text-muted-foreground">
+            Enter the backup code from your other device to restore your encryption key.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm text-muted-foreground">Backup Code</label>
+            <input
+              type="text"
+              value={backupCode}
+              onChange={(e) => setBackupCode(e.target.value)}
+              placeholder="Enter backup code from another device"
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
+            />
+          </div>
+          <div>
+            <label className="text-sm text-muted-foreground">New Password</label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Create new encryption password (min 8 characters)"
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
+            />
+          </div>
+          <div>
+            <label className="text-sm text-muted-foreground">Confirm New Password</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm new encryption password"
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <Button 
+            onClick={onCancel}
+            variant="outline"
+            size="sm"
+            className="flex-1"
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSubmit}
+            disabled={!backupCode.trim() || newPassword.length < 8 || newPassword !== confirmPassword || isLoading}
+            size="sm"
+            className="flex-1 btn-primary"
+          >
+            {isLoading ? 'Setting up...' : 'Setup Encryption'}
           </Button>
         </div>
       </div>
