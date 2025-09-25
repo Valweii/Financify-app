@@ -25,6 +25,19 @@ export interface ImportedTransaction {
   category?: string;
 }
 
+export interface SplitBillHistory {
+  id: string;
+  date: string;
+  total_amount_cents: number;
+  people: { id: string; name: string }[];
+  items: { id: string; name: string; price_cents: number; participants: string[] }[];
+  tax_choice: 'none' | '10' | '11';
+  service_fee_cents: number;
+  person_totals: Record<string, { subtotal_cents: number; tax_cents: number; service_cents: number; total_cents: number; shares: { itemId: string; name: string; share_cents: number }[] }>;
+  payment_status: Record<string, boolean>; // person_id -> has_paid
+  created_at: string;
+}
+
 interface FinancifyStore {
   // Auth state
   user: User | null;
@@ -35,6 +48,9 @@ interface FinancifyStore {
   // Transactions
   transactions: Transaction[];
   importedDraft: ImportedTransaction[];
+  
+  // Split bill history
+  splitBillHistory: SplitBillHistory[];
   
   // Encryption state
   isEncryptionEnabled: boolean;
@@ -56,6 +72,14 @@ interface FinancifyStore {
   // Encryption actions
   setEncryptionKey: (key: CryptoKey | null) => void;
   setEncryptionEnabled: (enabled: boolean) => void;
+  
+  // Split bill history actions
+  setSplitBillHistory: (history: SplitBillHistory[]) => void;
+  addSplitBillHistory: (splitBill: SplitBillHistory) => void;
+  loadSplitBillHistory: () => Promise<void>;
+  saveSplitBillHistory: (splitBill: SplitBillHistory) => Promise<void>;
+  updatePaymentStatus: (splitBillId: string, personId: string, hasPaid: boolean) => void;
+  removeSplitBill: (splitBillId: string) => void;
   
   // Supabase actions
   loadTransactions: () => Promise<void>;
@@ -83,6 +107,7 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   isAuthenticated: false,
   transactions: [],
   importedDraft: [],
+  splitBillHistory: [],
   isEncryptionEnabled: false,
   encryptionKey: null,
   isLoading: false,
@@ -113,6 +138,194 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   setEncryptionKey: (encryptionKey) => set({ encryptionKey }),
   
   setEncryptionEnabled: (isEncryptionEnabled) => set({ isEncryptionEnabled }),
+  
+  // Split bill history actions
+  setSplitBillHistory: (splitBillHistory) => set({ splitBillHistory: splitBillHistory.map(b => ({
+    ...b,
+    payment_status: b.payment_status || {},
+  })) }),
+  
+  addSplitBillHistory: (splitBill) => {
+    const { user } = get();
+    set(state => {
+      const newHistory = [splitBill, ...state.splitBillHistory].sort((a, b) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      
+      // Also save to localStorage as backup
+      if (user) {
+        localStorage.setItem(`split_bill_history_${user.id}`, JSON.stringify(newHistory));
+        console.log('Saved split bill history to localStorage:', newHistory);
+      }
+      
+      return { splitBillHistory: newHistory };
+    });
+  },
+  
+  loadSplitBillHistory: async () => {
+    const { user } = get();
+    if (!user) {
+      console.log('No user found when loading split bill history');
+      return;
+    }
+    
+    try {
+      console.log('Loading split bill history for user:', user.id);
+      const { data, error } = await (supabase as any)
+        .from('split_bill_history')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Database error loading split bill history:', error);
+        // Fallback: load from local storage if database table doesn't exist
+        console.log('Falling back to local storage for loading...');
+        const localHistory = localStorage.getItem(`split_bill_history_${user.id}`);
+        if (localHistory) {
+          const history = JSON.parse(localHistory);
+          set({ splitBillHistory: history });
+          console.log('Loaded split bill history from local storage:', history);
+        }
+        return;
+      }
+      
+      console.log('Loaded split bill history from database:', data);
+      
+      const history: SplitBillHistory[] = (data || []).map((h: any) => ({
+        id: h.id,
+        date: h.date,
+        total_amount_cents: h.total_amount_cents,
+        people: h.people,
+        items: h.items,
+        tax_choice: h.tax_choice,
+        service_fee_cents: h.service_fee_cents,
+        person_totals: h.person_totals,
+        payment_status: h.payment_status || {},
+        created_at: h.created_at,
+      }));
+      
+      set({ splitBillHistory: history });
+    } catch (error) {
+      console.error('Error loading split bill history:', error);
+      // Fallback: load from local storage if database fails
+      console.log('Falling back to local storage due to error...');
+      const localHistory = localStorage.getItem(`split_bill_history_${user.id}`);
+      if (localHistory) {
+        const history = JSON.parse(localHistory);
+        set({ splitBillHistory: history });
+        console.log('Loaded split bill history from local storage:', history);
+      }
+    }
+  },
+  
+  saveSplitBillHistory: async (splitBill) => {
+    const { user } = get();
+    if (!user) {
+      console.error('No user found when saving split bill history');
+      return;
+    }
+    
+    try {
+      console.log('Attempting to save split bill to database:', {
+        user_id: user.id,
+        date: splitBill.date,
+        total_amount_cents: splitBill.total_amount_cents,
+        people: splitBill.people,
+        items: splitBill.items,
+        tax_choice: splitBill.tax_choice,
+        service_fee_cents: splitBill.service_fee_cents,
+        person_totals: splitBill.person_totals,
+      });
+      
+      const { data, error } = await (supabase as any)
+        .from('split_bill_history')
+        .insert({
+          user_id: user.id,
+          date: splitBill.date,
+          total_amount_cents: splitBill.total_amount_cents,
+          people: splitBill.people,
+          items: splitBill.items,
+          tax_choice: splitBill.tax_choice,
+          service_fee_cents: splitBill.service_fee_cents,
+          person_totals: splitBill.person_totals,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Database error saving split bill:', error);
+        // Fallback: save locally if database table doesn't exist
+        console.log('Falling back to local storage...');
+        const newSplitBill: SplitBillHistory = {
+          ...splitBill,
+          id: splitBill.id,
+          created_at: splitBill.created_at,
+          payment_status: splitBill.payment_status || {},
+        };
+        get().addSplitBillHistory(newSplitBill);
+        return;
+      }
+      
+      console.log('Split bill saved to database:', data);
+      
+      const newSplitBill: SplitBillHistory = {
+        ...splitBill,
+        id: data.id,
+        payment_status: splitBill.payment_status || {},
+        created_at: data.created_at,
+      };
+      
+      get().addSplitBillHistory(newSplitBill);
+    } catch (error) {
+      console.error('Error saving split bill history:', error);
+      // Fallback: save locally if database fails
+      console.log('Falling back to local storage due to error...');
+      const newSplitBill: SplitBillHistory = {
+        ...splitBill,
+        id: splitBill.id,
+        created_at: splitBill.created_at,
+        payment_status: splitBill.payment_status || {},
+      };
+      get().addSplitBillHistory(newSplitBill);
+    }
+  },
+  
+  updatePaymentStatus: (splitBillId, personId, hasPaid) => {
+    const { user } = get();
+    set(state => {
+      const updatedHistory = state.splitBillHistory.map(bill => {
+        if (bill.id !== splitBillId) return bill;
+        return {
+          ...bill,
+          payment_status: {
+            ...bill.payment_status,
+            [personId]: hasPaid
+          }
+        };
+      });
+      if (user) {
+        localStorage.setItem(`split_bill_history_${user.id}`, JSON.stringify(updatedHistory));
+        console.log('Updated payment status in localStorage:', { splitBillId, personId, hasPaid });
+      }
+      return { splitBillHistory: updatedHistory };
+    });
+  },
+  
+  removeSplitBill: (splitBillId) => {
+    const { user } = get();
+    set(state => {
+      const updatedHistory = state.splitBillHistory.filter(bill => bill.id !== splitBillId);
+      
+      // Also update localStorage
+      if (user) {
+        localStorage.setItem(`split_bill_history_${user.id}`, JSON.stringify(updatedHistory));
+        console.log('Removed split bill from localStorage:', splitBillId);
+      }
+      
+      return { splitBillHistory: updatedHistory };
+    });
+  },
   
   // Supabase actions
   loadTransactions: async () => {

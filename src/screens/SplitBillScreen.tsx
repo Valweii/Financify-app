@@ -3,14 +3,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, Pencil, ChevronDown, ImagePlus } from "lucide-react";
+import { Plus, Trash2, Pencil, ChevronDown, ImagePlus, History, Receipt } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MoneyDisplay } from "@/components/MoneyDisplay";
-import { useFinancifyStore } from "@/store";
+import { useFinancifyStore, type SplitBillHistory } from "@/store";
+import { SplitBillHistoryScreen } from "./SplitBillHistoryScreen";
 import { toast } from "@/components/ui/use-toast";
 import { parseReceiptImage } from "@/lib/receipt-ocr";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Checkbox } from "@/components/ui/checkbox";
 
 // Local types for split bill
 type Person = { id: string; name: string };
@@ -23,23 +23,25 @@ type Item = {
 };
 
 export const SplitBillScreen = () => {
-  const { createTransaction, user, profile } = useFinancifyStore();
+  const { createTransaction, user, profile, saveSplitBillHistory, splitBillHistory, loadSplitBillHistory } = useFinancifyStore();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [items, setItems] = useState<Item[]>([]);
-  const [taxChoice, setTaxChoice] = useState<'none' | '10' | '11'>('none');
-  const [serviceFeeCents, setServiceFeeCents] = useState<number>(0);
+  // Single percent input for combined Tax & Service (e.g., 10.5 means 10.5%)
+  const [taxServicePercent, setTaxServicePercent] = useState<number>(0);
   const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
   const [isEditItemOpen, setIsEditItemOpen] = useState(false);
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [editItemPrice, setEditItemPrice] = useState<string>("0");
   const [expandedPersonId, setExpandedPersonId] = useState<string | null>(null);
-  const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
+  const [step, setStep] = useState<-1 | 0 | 1 | 2 | 3>(-1);
+  const [showHistory, setShowHistory] = useState(false);
   const [assignPersonId, setAssignPersonId] = useState<string | null>(null);
   const [myPersonId, setMyPersonId] = useState<string | null>(null);
   const [myName, setMyName] = useState<string>("");
+  const [isEditMode, setIsEditMode] = useState<boolean>(false);
 
   const [newPersonName, setNewPersonName] = useState("");
   const [draftItem, setDraftItem] = useState<{ name: string; price_cents: number; participants: string[] }>({ name: "", price_cents: 0, participants: [] });
@@ -136,17 +138,11 @@ export const SplitBillScreen = () => {
           ]);
           toast({ title: "Items detected", description: `Added ${itemsFromOcr.length} item(s) from receipt.` });
         }
-        // Automatically proceed to next step after processing
-        setTimeout(() => {
-          setStep(1);
-        }, 1000); // Small delay to show completion
+          // Do not auto-advance; user reviews items first
       } catch (e) {
         console.error(e);
         toast({ title: "OCR failed", description: "Could not read text from image. Please add items manually." });
-        // Still proceed to next step even if OCR fails
-        setTimeout(() => {
-          setStep(1);
-        }, 1000);
+        // Do not auto-advance on error
       } finally {
         setIsOcrLoading(false);
       }
@@ -189,6 +185,11 @@ export const SplitBillScreen = () => {
 
   const getInitials = (name: string) => name.split(" ").map(s => s[0]).join("").slice(0,2).toUpperCase();
 
+  // Load split bill history on mount
+  useEffect(() => {
+    loadSplitBillHistory();
+  }, [loadSplitBillHistory]);
+
   // Auto-register current user as a participant in the Add people step
   useEffect(() => {
     const defaultName = (profile?.full_name || user?.email?.split('@')[0] || '').trim();
@@ -222,25 +223,16 @@ export const SplitBillScreen = () => {
     const subtotalSum = Object.values(totals).reduce((s, t) => s + (t.subtotal_cents || 0), 0);
     const entries = Object.entries(totals);
 
-    // 1) Split service fee equally across ALL people regardless of spending
-    if (serviceFeeCents > 0 && entries.length > 0) {
-      const baseShare = Math.floor(serviceFeeCents / entries.length);
-      let remainder = serviceFeeCents - baseShare * entries.length;
-      entries.forEach(([_, t]) => {
-        t.service_cents = baseShare + (remainder > 0 ? 1 : 0);
-        if (remainder > 0) remainder -= 1;
-      });
-    }
-
-    // 2) Compute tax AFTER service fee is added, and distribute proportionally to (subtotal + service)
-    const taxPct = taxChoice === '10' ? 10 : taxChoice === '11' ? 11 : 0;
-    if (taxPct > 0 && (subtotalSum + serviceFeeCents) > 0) {
-      const perPersonBase = entries.map(([pid, t]) => ({ pid, base: (t.subtotal_cents || 0) + (t.service_cents || 0) }));
+    // Single combined percent applied proportionally to subtotal
+    const taxPct = Math.max(0, Math.min(100, taxServicePercent || 0));
+    if (taxPct > 0 && subtotalSum > 0) {
+      const perPersonBase = entries.map(([pid, t]) => ({ pid, base: (t.subtotal_cents || 0) }));
       const totalBase = perPersonBase.reduce((s, x) => s + x.base, 0);
-      const taxTotal = Math.round(totalBase * taxPct / 100);
+      const totalFee = Math.round(totalBase * taxPct / 100);
       let allocated = 0;
       perPersonBase.forEach((x, idx) => {
-        const share = idx === perPersonBase.length - 1 ? Math.max(0, taxTotal - allocated) : Math.round((x.base / totalBase) * taxTotal);
+        const share = idx === perPersonBase.length - 1 ? Math.max(0, totalFee - allocated) : Math.round((x.base / totalBase) * totalFee);
+        totals[x.pid].service_cents = 0;
         totals[x.pid].tax_cents = share;
         allocated += share;
       });
@@ -251,7 +243,7 @@ export const SplitBillScreen = () => {
     });
 
     return totals;
-  }, [people, items, taxChoice, serviceFeeCents]);
+  }, [people, items, taxServicePercent]);
 
   const canProceedFromPeople = people.length > 0;
   const allItemsHaveParticipants = items.length > 0 && items.every(it => it.participants.length > 0);
@@ -262,11 +254,45 @@ export const SplitBillScreen = () => {
   }
 
   return (
-    <div className="space-y-6">
+          <div className="flex flex-col space-y-6">
       <div className="space-y-2">
         <h1 className="text-2xl font-bold">Split Bill</h1>
-        <p className="text-muted-foreground">Step {step + 1} of 4</p>
+        {step >= 0 && <p className="text-muted-foreground">Step {step + 1} of 4</p>}
       </div>
+
+      {step === -1 && (
+        <div className="space-y-6">
+          {showHistory ? (
+            <SplitBillHistoryScreen onBack={() => setShowHistory(false)} />
+          ) : (
+            <div className="flex flex-col gap-4">
+              <Card className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setStep(0)}>
+                <div className="flex items-center space-x-4">
+                  <div className="p-3 bg-primary/10 rounded-lg">
+                    <Receipt className="w-8 h-8 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">Split a Bill Now</h3>
+                    <p className="text-muted-foreground">Start a new bill splitting session</p>
+                  </div>
+                </div>
+              </Card>
+              
+              <Card className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setShowHistory(true)}>
+                <div className="flex items-center space-x-4">
+                  <div className="p-3 bg-primary/10 rounded-lg">
+                    <History className="w-8 h-8 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">View Active Split Bill</h3>
+                    <p className="text-muted-foreground">See your active split bills and payment status</p>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+        </div>
+      )}
 
       {step === 0 && (
         <Card className="financial-card p-4 h-[65vh] flex flex-col">
@@ -285,16 +311,46 @@ export const SplitBillScreen = () => {
             ) : (
               <>
                 {imagePreview ? (
-                  <div className="flex-1 flex items-center justify-center w-full">
-                    <label className="cursor-pointer w-full h-full flex items-center justify-center">
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && e.target.files[0] && handleImageUpload(e.target.files[0])} />
-                      <img 
-                        src={imagePreview} 
-                        alt="Receipt preview - Click to upload different image" 
-                        className="rounded-lg border border-border/50 w-[27vw] h-[48vh] object-contain hover:opacity-80 transition-opacity" 
-                        title="Click to upload a different receipt"
-                      />
-                    </label>
+                  <div className="flex-1 w-full">
+                    {/* After upload, show editable item summary before continue */}
+                    <h3 className="text-lg font-semibold mb-3">Detected Items</h3>
+                    <div className="space-y-2 max-h-[48vh] overflow-y-auto">
+                      {items.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No items detected yet. You can add them manually in the next step.</p>
+                      ) : (
+                        items.map(it => (
+                          <div key={it.id} className="p-3 rounded-lg border border-border/50 flex items-center justify-between">
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">{it.name}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-24 text-right">
+                                <MoneyDisplay amount={it.price_cents} size="md" />
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => { setEditItemId(it.id); setEditItemPrice(String(it.price_cents)); setIsEditItemOpen(true); }}
+                                aria-label="Edit price"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItem(it.id)}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <Button className="btn-primary" onClick={() => setStep(1)}>Continue</Button>
+                    </div>
                   </div>
                 ) : (
                   <label className="btn-primary inline-flex items-center justify-center rounded-md px-5 py-3 cursor-pointer disabled:opacity-70">
@@ -356,97 +412,68 @@ export const SplitBillScreen = () => {
         <Card className="financial-card p-4 h-[65vh] flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold">Assign items</h3>
-            <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="btn-primary"><Plus className="w-4 h-4 mr-1" /> Add Item</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add Item</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-3 py-2">
-                  <div>
-                    <label className="text-sm text-muted-foreground">Item Name</label>
-                    <Input value={draftItem.name} onChange={(e) => setDraftItem({ ...draftItem, name: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="text-sm text-muted-foreground">Price (IDR)</label>
-                    <Input type="number" min={0} value={draftItem.price_cents} onChange={(e) => setDraftItem({ ...draftItem, price_cents: Math.max(0, parseInt(e.target.value || '0', 10)) })} />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button onClick={addItem} className="btn-primary">Save</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-          {/* Set your participant */}
-          <div className="grid grid-cols-3 gap-3 mb-3">
-            <div className="col-span-2">
-              <label className="text-sm text-muted-foreground">Your name (for expense)</label>
-              <Input value={myName} onChange={(e) => setMyName(e.target.value)} placeholder="e.g., Val" />
-            </div>
-            <div className="flex items-end">
-              <Button
-                type="button"
-                className="btn-primary w-full"
-                onClick={() => {
-                  const name = myName.trim();
-                  if (!name) return;
-                  let existing = people.find(p => p.name.toLowerCase() === name.toLowerCase());
-                  if (!existing) {
-                    existing = { id: crypto.randomUUID(), name };
-                    setPeople(prev => [...prev, existing!]);
-                  }
-                  setMyPersonId(existing.id);
-                  setAssignPersonId(existing.id);
-                }}
-              >
-                Set Me
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setIsEditMode(v => !v)}>
+                {isEditMode ? 'Done Editing' : 'Edit Mode'}
               </Button>
+              <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm"><Plus className="w-4 h-4 mr-1" /> Add Item</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add Item</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-3 py-2">
+                    <div>
+                      <label className="text-sm text-muted-foreground">Item Name</label>
+                      <Input value={draftItem.name} onChange={(e) => setDraftItem({ ...draftItem, name: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground">Price (IDR)</label>
+                      <Input type="number" min={0} value={draftItem.price_cents} onChange={(e) => setDraftItem({ ...draftItem, price_cents: Math.max(0, parseInt(e.target.value || '0', 10)) })} />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={addItem} className="btn-primary">Save</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
-          {/* Participant selector */}
+          {/* Removed Set your participant: auto-assign current username via effect */}
+          {/* Participant selector (avatars) */}
           <div className="mb-3">
-            <div className="flex items-center gap-2 overflow-x-auto py-1">
+            <div className="flex items-center gap-2 py-1 overflow-x-auto scrollbar-hide">
               {people.map(p => (
                 <button
                   key={p.id}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full border shadow-sm hover:shadow transition-all ${assignPersonId === p.id ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-foreground bg-card'}`}
                   onClick={() => setAssignPersonId(p.id)}
                 >
-                  <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-muted/60 text-xs font-medium">
-                    {getInitials(p.name)}
-                  </span>
-                  <span className="text-sm">{p.name}</span>
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback className="text-[10px]">{getInitials(p.name)}</AvatarFallback>
+                  </Avatar>
+                  <span className="text-xs max-w-[72px] truncate">{p.name}</span>
                 </button>
               ))}
             </div>
           </div>
-          {/* Tax & Service controls */}
+          {/* Tax & Service controls - single percent */}
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
-              <label className="text-sm text-muted-foreground">Tax</label>
-              <Select value={taxChoice} onValueChange={(v) => setTaxChoice(v as any)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="10">10%</SelectItem>
-                  <SelectItem value="11">11%</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-sm text-muted-foreground">Service Fee (IDR)</label>
+              <label className="text-sm text-muted-foreground">Tax & Service (%)</label>
               <Input
                 type="number"
+                step="any"
                 min={0}
-                value={serviceFeeCents}
-                onChange={(e) => setServiceFeeCents(Math.max(0, parseInt(e.target.value || '0', 10)))}
+                max={100}
+                value={taxServicePercent}
+                placeholder="e.g., 10"
+                onChange={(e) => setTaxServicePercent(Math.max(0, Math.min(100, parseFloat(e.target.value || '0'))))}
               />
             </div>
+            <div className="flex items-end"><div className="text-sm text-muted-foreground">&nbsp;</div></div>
           </div>
           {/* Preview Current total */}
           {assignPersonId && (
@@ -485,23 +512,29 @@ export const SplitBillScreen = () => {
                   <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4">
                     <div className="min-w-0">
                       <p className="font-medium truncate">{it.name}</p>
-                      <p className={`text-sm truncate ${isSelected ? 'opacity-90' : 'text-muted-foreground'}`}>Participants: {it.participants.map(pid => people.find(p => p.id === pid)?.name || 'Unknown').join(', ') || 'None'}</p>
+                      <div className={`flex items-center gap-1 ${isSelected ? 'opacity-90' : 'opacity-70'}`}>
+                        {it.participants.length === 0 ? (
+                          <span className="text-sm text-muted-foreground">No participants</span>
+                        ) : (
+                          it.participants.map(pid => {
+                            const person = people.find(p => p.id === pid);
+                            return (
+                              <Avatar key={pid} className="h-5 w-5">
+                                <AvatarFallback className="text-[9px]">{getInitials(person?.name || 'U')}</AvatarFallback>
+                              </Avatar>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center justify-center">
-                      {assignPersonId && (
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            aria-label="Toggle participant for item"
-                            checked={it.participants.includes(assignPersonId)}
-                            onCheckedChange={() => togglePersonInItem(it.id, assignPersonId)}
-                          />
-                        </div>
-                      )}
+                      {/* removed checkbox icon */}
                     </div>
                     <div className="flex items-center justify-end gap-3">
                       <div className="w-24 text-right">
                         <MoneyDisplay amount={it.price_cents} size="md" />
                       </div>
+                      {isEditMode && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -511,6 +544,8 @@ export const SplitBillScreen = () => {
                       >
                         <Pencil className="w-4 h-4" />
                       </Button>
+                      )}
+                      {isEditMode && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -519,92 +554,82 @@ export const SplitBillScreen = () => {
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
+                      )}
                     </div>
                   </div>
                 </div>
               );
             })}
           </div>
-          {/* Edit Item Price Dialog */}
-          <Dialog open={isEditItemOpen} onOpenChange={setIsEditItemOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Edit Item Price (IDR)</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-3 py-2">
-                <div>
-                  <label className="text-sm text-muted-foreground">Amount</label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={editItemPrice}
-                    onChange={(e) => setEditItemPrice(e.target.value)}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  onClick={() => {
-                    const v = Math.max(0, parseInt(editItemPrice || '0', 10));
-                    if (!editItemId) { setIsEditItemOpen(false); return; }
-                    setItems(prev => prev.map(it => it.id === editItemId ? { ...it, price_cents: v } : it));
-                    setIsEditItemOpen(false);
-                  }}
-                  className="btn-primary"
-                >
-                  Save
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </Card>
       )}
 
       {step === 3 && (
-        <Card className="financial-card p-4 flex flex-col">
-          <h3 className="text-lg font-semibold mb-3">Summary</h3>
-          <div className="flex-1 space-y-2 overflow-y-auto">
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold">Summary</h3>
+          <div className="space-y-3">
             {people.map(p => {
               const details = personTotals[p.id];
               return (
-                <div key={p.id} className="p-3 rounded-lg border border-border/50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 min-w-0 cursor-pointer" onClick={() => setExpandedPersonId(prev => prev === p.id ? null : p.id)}>
-                      <ChevronDown className={`w-4 h-4 transition-transform ${expandedPersonId === p.id ? 'rotate-180' : ''}`} />
-                      <span className="font-medium truncate">{p.name}</span>
-                    </div>
+                <div key={p.id} className="p-4 rounded-lg border border-border/50 bg-card">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-medium text-lg">{p.name}</span>
                     <div className="text-right">
-                      <div className="text-xs text-muted-foreground">Total</div>
-                      {(details?.tax_cents || 0) > 0 && (
-                        <div className="text-xs text-muted-foreground mt-1">+ Tax <MoneyDisplay amount={details?.tax_cents || 0} size="sm" /></div>
-                      )}
-                      <div className="font-medium mt-1"><MoneyDisplay amount={details?.total_cents || 0} size="md" /></div>
+                      <div className="text-sm text-muted-foreground">Total</div>
+                      <div className="font-semibold text-lg"><MoneyDisplay amount={details?.total_cents || 0} size="lg" /></div>
                     </div>
                   </div>
-                  <div className={`overflow-hidden transition-all duration-300 ${expandedPersonId === p.id ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0'}`}>
-                    {expandedPersonId === p.id && (
-                      <div className="pt-2 mt-2 border-t border-border/50 space-y-1">
-                        {details?.shares.length ? details.shares.map(s => (
-                          <div key={s.itemId} className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground truncate pr-2">{s.name}</span>
+                  
+                  {/* Always show details expanded */}
+                  <div className="space-y-2">
+                    {details?.shares.length ? (
+                      <>
+                        <div className="text-sm font-medium text-muted-foreground mb-2">Items:</div>
+                        {details.shares.map(s => (
+                          <div key={s.itemId} className="flex items-center justify-between text-sm py-1">
+                            <span className="text-foreground truncate pr-2">{s.name}</span>
                             <MoneyDisplay amount={s.share_cents} size="sm" />
                           </div>
-                        )) : (
-                          <p className="text-sm text-muted-foreground">No assigned items</p>
+                        ))}
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No assigned items</p>
+                    )}
+                    
+                    {/* Show breakdown if there are taxes or service fees */}
+                    {(details?.tax_cents || 0) > 0 || (details?.service_cents || 0) > 0 ? (
+                      <div className="pt-2 mt-2 border-t border-border/50 space-y-1">
+                        <div className="text-sm font-medium text-muted-foreground">Breakdown:</div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Subtotal</span>
+                          <MoneyDisplay amount={details?.subtotal_cents || 0} size="sm" />
+                        </div>
+                        {(details?.service_cents || 0) > 0 && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Service Fee</span>
+                            <MoneyDisplay amount={details?.service_cents || 0} size="sm" />
+                          </div>
+                        )}
+                        {(details?.tax_cents || 0) > 0 && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Tax</span>
+                            <MoneyDisplay amount={details?.tax_cents || 0} size="sm" />
+                          </div>
                         )}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               );
             })}
           </div>
-        </Card>
+        </div>
       )}
 
       {/* Navigation */}
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={() => setStep(prev => (prev > 0 ? ((prev - 1) as any) : prev))} disabled={step === 0}>Back</Button>
+      {step >= 0 && (
+        <div className="flex items-center justify-between">
+          <Button variant="outline" onClick={() => setStep(prev => (prev > 0 ? ((prev - 1) as any) : -1))} disabled={step === 0}>Back</Button>
         <div className="flex items-center gap-2">
           {step < 3 && (
             <Button
@@ -623,11 +648,34 @@ export const SplitBillScreen = () => {
               className="btn-primary"
               onClick={async () => {
                 try {
+                  const today = new Date();
+                  const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+                  
+                  // Calculate total amount for the entire bill
+                  const totalAmount = Object.values(personTotals).reduce((sum, person) => sum + (person?.total_cents || 0), 0);
+                  
+                  // Save split bill history
+                  const splitBillData = {
+                    id: crypto.randomUUID(),
+                    date,
+                    total_amount_cents: totalAmount,
+                    people,
+                    items,
+                    tax_choice: 'none' as 'none',
+                    service_fee_cents: 0,
+                    person_totals: personTotals,
+                    payment_status: {}, // Initialize empty payment status
+                    created_at: new Date().toISOString(),
+                  };
+                  
+                  console.log('Saving split bill data:', splitBillData);
+                  await saveSplitBillHistory(splitBillData);
+                  console.log('Split bill saved successfully');
+                  
+                  // Also create transaction for the current user if they have a share
                   if (myPersonId) {
                     const total = personTotals[myPersonId]?.total_cents || 0;
                     if (total > 0) {
-                      const today = new Date();
-                      const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
                       const who = myName.trim() || people.find(p => p.id === myPersonId)?.name || 'Me';
                       await createTransaction({
                         date,
@@ -636,11 +684,18 @@ export const SplitBillScreen = () => {
                         amount_cents: total,
                         category: 'Split Bill',
                       });
-                      toast({ title: 'Expense added', description: 'Your share has been saved.' });
+                      toast({ title: 'Split bill saved', description: 'Your share has been saved and split bill history recorded.' });
+                    } else {
+                      toast({ title: 'Split bill saved', description: 'Split bill history has been recorded.' });
                     }
+                  } else {
+                    toast({ title: 'Split bill saved', description: 'Split bill history has been recorded.' });
                   }
+                } catch (error) {
+                  console.error('Error saving split bill:', error);
+                  toast({ title: 'Error', description: 'Failed to save split bill. Please try again.' });
                 } finally {
-                  setStep(0);
+                  setStep(-1);
                 }
               }}
             >
@@ -648,7 +703,41 @@ export const SplitBillScreen = () => {
             </Button>
           )}
         </div>
-      </div>
+        </div>
+      )}
+      
+      {/* Global Edit Item Price Dialog (available in all steps) */}
+      <Dialog open={isEditItemOpen} onOpenChange={setIsEditItemOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Item Price (IDR)</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div>
+              <label className="text-sm text-muted-foreground">Amount</label>
+              <Input
+                type="number"
+                min={0}
+                value={editItemPrice}
+                onChange={(e) => setEditItemPrice(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                const v = Math.max(0, parseInt(editItemPrice || '0', 10));
+                if (!editItemId) { setIsEditItemOpen(false); return; }
+                setItems(prev => prev.map(it => it.id === editItemId ? { ...it, price_cents: v } : it));
+                setIsEditItemOpen(false);
+              }}
+              className="btn-primary"
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
