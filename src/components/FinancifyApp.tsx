@@ -66,7 +66,7 @@ export const FinancifyApp = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [setUser, setSession, loadTransactions, loadProfile]);
+  }, [setUser, setSession, loadTransactions, loadProfile, isEncryptionEnabled, encryptionKey]);
 
   // After unlock: when encryption is enabled and key is available, ensure we load encrypted transactions immediately.
   useEffect(() => {

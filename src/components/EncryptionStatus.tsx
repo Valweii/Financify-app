@@ -32,9 +32,7 @@ export const EncryptionStatus = () => {
   };
 
   const confirmDisableEncryption = () => {
-    clearEncryption();
-    setEncryptionEnabled(false);
-    setEncryptionKey(null);
+    clearEncryption(); // This now handles all cleanup including localStorage
     setShowDisableWarning(false);
     
     toast({
@@ -71,7 +69,15 @@ export const EncryptionStatus = () => {
         title: 'Encryption reset', 
         description: 'Your encryption key has been restored from backup code.' 
       });
-      try { await loadTransactions(); } catch {}
+      // Force reload transactions after a short delay to ensure state is updated
+      setTimeout(async () => {
+        try { 
+          console.log('🔄 Reloading transactions after backup code recovery...');
+          await loadTransactions(); 
+        } catch (error) {
+          console.error('Failed to reload transactions after backup recovery:', error);
+        }
+      }, 100);
     } else {
       toast({ 
         title: 'Reset failed', 

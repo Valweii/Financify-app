@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS backup_codes (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   code_hash TEXT NOT NULL, -- SHA-256 hash of the backup code
+  encrypted_key JSONB NOT NULL, -- Original encryption key encrypted with backup code
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   used_at TIMESTAMP WITH TIME ZONE NULL, -- Track when code was used for recovery
   UNIQUE(user_id, code_hash)

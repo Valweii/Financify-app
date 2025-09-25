@@ -20,6 +20,11 @@ import {
   loadCachedCryptoKey,
   storeEncryptedOriginalKey,
   restoreOriginalKeyWithBackupCode,
+  exportRawKey,
+  importRawKey,
+  deriveKeyFromBackupCode,
+  isEncryptionEnabled as isEncryptionEnabledLocal,
+  setEncryptionEnabled as setEncryptionEnabledLocal,
   type EncryptionKey,
   type EncryptedData
 } from '@/lib/encryption';
@@ -56,53 +61,68 @@ const hashBackupCode = async (code: string): Promise<string> => {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 };
 
-// Helper function to store backup code hashes in Supabase
-const storeBackupCodeHashes = async (codes: string[]): Promise<void> => {
+// Helper function to store backup code hashes and encrypted keys in Supabase
+const storeBackupCodeHashes = async (codes: string[], originalKey: CryptoKey): Promise<void> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No authenticated user');
 
-    // Hash all backup codes
-    const hashedCodes = await Promise.all(codes.map(code => hashBackupCode(code)));
+    // Export the original key as raw bytes
+    const rawKey = await exportRawKey(originalKey);
+    
+    // Encrypt the original key with each backup code and store in Supabase
+    const backupCodeData = await Promise.all(
+      codes.map(async (code) => {
+        const codeHash = await hashBackupCode(code);
+        const backupKey = await deriveKeyFromBackupCode(code);
+        const encryptedKey = await encryptData(Array.from(rawKey), backupKey);
+        
+        return {
+          user_id: user.id,
+          code_hash: codeHash,
+          encrypted_key: encryptedKey,
+          created_at: new Date().toISOString()
+        };
+      })
+    );
 
-    // Store hashes in Supabase
+    // Store in Supabase
     const { error } = await (supabase as any)
       .from('backup_codes')
-      .upsert(
-        hashedCodes.map(hash => ({
-          user_id: user.id,
-          code_hash: hash,
-          created_at: new Date().toISOString()
-        })),
-        { onConflict: 'user_id,code_hash' }
-      );
+      .upsert(backupCodeData, { onConflict: 'user_id,code_hash' });
 
     if (error) {
-      console.error('Failed to store backup code hashes:', error);
+      console.error('Failed to store backup code hashes and encrypted keys:', error);
       throw error;
     }
   } catch (error) {
-    console.error('Error storing backup code hashes:', error);
+    console.error('Error storing backup code hashes and encrypted keys:', error);
     // Don't throw - this is a fallback feature
   }
 };
 
-// Helper function to validate backup code against Supabase hashes
-const validateBackupCodeHash = async (code: string): Promise<boolean> => {
+// Helper function to validate backup code and restore original key from Supabase
+const validateBackupCodeHash = async (code: string): Promise<CryptoKey | null> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
+    if (!user) return null;
 
     const codeHash = await hashBackupCode(code);
     
     const { data, error } = await (supabase as any)
       .from('backup_codes')
-      .select('id, used_at')
+      .select('id, encrypted_key, used_at')
       .eq('user_id', user.id)
       .eq('code_hash', codeHash)
       .single();
 
-    if (error || !data) return false;
+    if (error || !data) return null;
+    
+    // Decrypt the original key using the backup code
+    const backupKey = await deriveKeyFromBackupCode(code);
+    const decryptedData = await decryptData(data.encrypted_key, backupKey);
+    const rawKey = new Uint8Array(decryptedData);
+    const originalKey = await importRawKey(rawKey);
     
     // Mark as used if not already used
     if (!data.used_at) {
@@ -112,10 +132,10 @@ const validateBackupCodeHash = async (code: string): Promise<boolean> => {
         .eq('id', data.id);
     }
     
-    return true;
+    return originalKey;
   } catch (error) {
-    console.error('Error validating backup code hash:', error);
-    return false;
+    console.error('Error validating backup code and restoring key:', error);
+    return null;
   }
 };
 
@@ -125,15 +145,22 @@ export const useEncryption = (): UseEncryptionReturn => {
   const [currentKey, setCurrentKey] = useState<CryptoKey | null>(null);
   const { setEncryptionKey, setEncryptionEnabled } = useFinancifyStore();
 
-  // Check if encryption key is set up on mount
+  // Check if encryption key is set up on mount and sync encryption state
   useEffect(() => {
     const checkKeySetup = () => {
       const hasKey = hasEncryptionKey();
+      const encryptionEnabled = isEncryptionEnabledLocal();
+      
       setIsKeySetup(hasKey);
       setIsKeyLoading(false);
+      
+      // Sync encryption state with store
+      if (hasKey && encryptionEnabled) {
+        setEncryptionEnabled(true);
+      }
     };
     checkKeySetup();
-  }, []);
+  }, [setEncryptionEnabled]);
 
   // Try to restore cached CryptoKey silently on mount (WhatsApp-like UX)
   useEffect(() => {
@@ -145,7 +172,11 @@ export const useEncryption = (): UseEncryptionReturn => {
       const cached = await loadCachedCryptoKey();
       if (!cancelled && cached) {
         setCurrentKey(cached);
-        try { setEncryptionKey(cached); setEncryptionEnabled(true); } catch {}
+        try { 
+          setEncryptionKey(cached); 
+          setEncryptionEnabled(true);
+          setEncryptionEnabledLocal(true); // Also persist to localStorage
+        } catch {}
       }
       if (!cancelled) setIsKeyLoading(false);
     })();
@@ -188,9 +219,9 @@ export const useEncryption = (): UseEncryptionReturn => {
       console.log('🔐 Storing original key encrypted with backup codes...');
       await storeEncryptedOriginalKey(encryptionKey.key, backupCodes);
       
-      // Store backup code hashes in Supabase for cross-device recovery
-      console.log('🔐 Storing backup code hashes in Supabase...');
-      await storeBackupCodeHashes(backupCodes);
+      // Store backup code hashes and encrypted original key in Supabase for cross-device recovery
+      console.log('🔐 Storing backup code hashes and encrypted original key in Supabase...');
+      await storeBackupCodeHashes(backupCodes, encryptionKey.key);
       
       // Set current key for immediate use
       console.log('🔐 Setting current key...');
@@ -199,7 +230,11 @@ export const useEncryption = (): UseEncryptionReturn => {
       
       console.log('✅ Encryption setup completed successfully');
       try { await cacheCryptoKey(encryptionKey.key); } catch {}
-      try { setEncryptionKey(encryptionKey.key); setEncryptionEnabled(true); } catch {}
+      try { 
+        setEncryptionKey(encryptionKey.key); 
+        setEncryptionEnabled(true);
+        setEncryptionEnabledLocal(true); // Persist to localStorage
+      } catch {}
       return { success: true, backupCodes };
     } catch (error) {
       console.error('❌ Failed to setup encryption:', error);
@@ -265,7 +300,11 @@ export const useEncryption = (): UseEncryptionReturn => {
       console.log('✅ Key validation successful');
       setCurrentKey(key);
       try { await cacheCryptoKey(key); } catch {}
-      try { setEncryptionKey(key); setEncryptionEnabled(true); } catch {}
+      try { 
+        setEncryptionKey(key); 
+        setEncryptionEnabled(true);
+        setEncryptionEnabledLocal(true); // Persist to localStorage
+      } catch {}
       
       return { success: true };
     } catch (error) {
@@ -281,7 +320,9 @@ export const useEncryption = (): UseEncryptionReturn => {
     clearEncryptionKey();
     setCurrentKey(null);
     setIsKeySetup(false);
-  }, []);
+    setEncryptionEnabled(false);
+    setEncryptionEnabledLocal(false); // Clear from localStorage
+  }, [setEncryptionEnabled]);
 
   // Encrypt data
   const encrypt = useCallback(async (data: any): Promise<EncryptedData | null> => {
@@ -333,23 +374,22 @@ export const useEncryption = (): UseEncryptionReturn => {
         return { success: false, error: 'Invalid backup code' };
       }
 
-      // First try local validation (for same-device recovery)
-      const localCodes = (loadBackupCodes() || []).map(c => (c || '').toString().replace(/\s+/g, ''));
-      let isValidCode = localCodes.includes(normalized);
-      
-      // If not found locally, try Supabase validation (for cross-device recovery)
-      if (!isValidCode) {
-        console.log('🔍 Code not found locally, checking Supabase...');
-        isValidCode = await validateBackupCodeHash(normalized);
-      }
-      
-      if (!isValidCode) {
-        return { success: false, error: 'Invalid backup code' };
-      }
-
       // Try to restore the original encryption key using the backup code
       console.log('🔐 Attempting to restore original key with backup code...');
-      const restoredKey = await restoreOriginalKeyWithBackupCode(normalized);
+      let restoredKey: CryptoKey | null = null;
+      
+      // First try local restoration
+      restoredKey = await restoreOriginalKeyWithBackupCode(normalized);
+      
+      // If not found locally, try Supabase restoration (for cross-device recovery)
+      if (!restoredKey) {
+        console.log('🔍 Key not found locally, checking Supabase...');
+        restoredKey = await validateBackupCodeHash(normalized);
+      }
+      
+      if (!restoredKey) {
+        return { success: false, error: 'Invalid backup code' };
+      }
       
       if (restoredKey) {
         console.log('✅ Successfully restored original encryption key');
@@ -370,8 +410,13 @@ export const useEncryption = (): UseEncryptionReturn => {
         // Store the restored original key encrypted with new backup codes
         await storeEncryptedOriginalKey(restoredKey, newCodes);
         
-        // Store new backup code hashes in Supabase
-        await storeBackupCodeHashes(newCodes);
+        // Store new backup code hashes and encrypted key in Supabase
+        await storeBackupCodeHashes(newCodes, restoredKey);
+        
+        // Set encryption state to enabled and key in store
+        setEncryptionKey(restoredKey);
+        setEncryptionEnabled(true);
+        setEncryptionEnabledLocal(true);
         
         return { success: true, backupCodes: newCodes };
       } else {
@@ -390,11 +435,17 @@ export const useEncryption = (): UseEncryptionReturn => {
         // Store the new key encrypted with new backup codes
         await storeEncryptedOriginalKey(newEncKey.key, newCodes);
         
-        // Store new backup code hashes in Supabase
-        await storeBackupCodeHashes(newCodes);
+        // Store new backup code hashes and encrypted key in Supabase
+        await storeBackupCodeHashes(newCodes, newEncKey.key);
 
         setCurrentKey(newEncKey.key);
         setIsKeySetup(true);
+        
+        // Set encryption state to enabled and key in store
+        setEncryptionKey(newEncKey.key);
+        setEncryptionEnabled(true);
+        setEncryptionEnabledLocal(true);
+        
         return { success: true, backupCodes: newCodes };
       }
     } catch (e) {

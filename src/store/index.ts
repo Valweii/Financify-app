@@ -332,40 +332,64 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
     const { user, isEncryptionEnabled, encryptionKey } = get();
     if (!user) return;
     
+    console.log('🔄 loadTransactions called with:', {
+      hasUser: !!user,
+      isEncryptionEnabled,
+      hasEncryptionKey: !!encryptionKey,
+      userId: user?.id
+    });
+    
     set({ isLoading: true });
     try {
-      // Use encryption if enabled
+      let allTransactions: Transaction[] = [];
+
+      // Load encrypted transactions if encryption is enabled and key is available
       if (isEncryptionEnabled && encryptionKey) {
-        const { useEncryptedStore } = await import('./encryptedStore');
-        const encryptedStore = useEncryptedStore();
-        const encryptedTransactions = await encryptedStore.loadEncryptedTransactions(encryptionKey);
-        set({ transactions: encryptedTransactions });
-        return;
+        try {
+          const { useEncryptedStore } = await import('./encryptedStore');
+          const encryptedStore = useEncryptedStore();
+          const encryptedTransactions = await encryptedStore.loadEncryptedTransactions(encryptionKey);
+          allTransactions = [...encryptedTransactions];
+          console.log('✅ Loaded encrypted transactions:', encryptedTransactions.length);
+        } catch (error) {
+          console.error('Failed to load encrypted transactions:', error);
+        }
       }
 
-      // Original unencrypted logic
-      const { data, error } = await (supabase.from('transactions') as any)
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_encrypted', false) // Only load unencrypted transactions
-        .order('date', { ascending: false });
+      // Also load unencrypted transactions (for backward compatibility and mixed states)
+      try {
+        const { data, error } = await (supabase.from('transactions') as any)
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_encrypted', false)
+          .order('date', { ascending: false });
 
-      if (error) throw error;
+        if (error) throw error;
+        
+        const unencryptedTransactions: Transaction[] = ((data as any[]) || []).map(t => ({
+          id: t.id,
+          date: (t.date || '').split('T')[0],
+          description: t.description || '',
+          type: (t.type as 'debit' | 'credit') || 'debit',
+          amount_cents: t.amount_cents || 0,
+          currency: t.currency || 'IDR',
+          category: t.category || 'Other',
+          running_balance_cents: t.running_balance_cents || 0,
+          source: t.source || 'Manual',
+          created_at: t.created_at || new Date().toISOString(),
+        }));
+        
+        allTransactions = [...allTransactions, ...unencryptedTransactions];
+        console.log('✅ Loaded unencrypted transactions:', unencryptedTransactions.length);
+      } catch (error) {
+        console.error('Failed to load unencrypted transactions:', error);
+      }
+
+      // Sort all transactions by date (newest first)
+      allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       
-      const transactions: Transaction[] = ((data as any[]) || []).map(t => ({
-        id: t.id,
-        date: (t.date || '').split('T')[0],
-        description: t.description || '',
-        type: (t.type as 'debit' | 'credit') || 'debit',
-        amount_cents: t.amount_cents || 0,
-        currency: t.currency || 'IDR',
-        category: t.category || 'Other',
-        running_balance_cents: t.running_balance_cents || 0,
-        source: t.source || 'Manual',
-        created_at: t.created_at || new Date().toISOString(),
-      }));
-      
-      set({ transactions });
+      set({ transactions: allTransactions });
+      console.log('✅ Total transactions loaded:', allTransactions.length);
     } catch (error) {
       console.error('Error loading transactions:', error);
     } finally {

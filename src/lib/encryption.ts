@@ -184,6 +184,8 @@ export const storeEncryptionKey = (encryptionKey: EncryptionKey): void => {
   };
   
   localStorage.setItem('financify_encryption_key', JSON.stringify(keyData));
+  // Also store that encryption is enabled
+  localStorage.setItem('financify_encryption_enabled', 'true');
 };
 
 /**
@@ -212,6 +214,25 @@ export const hasEncryptionKey = (): boolean => {
  */
 export const clearEncryptionKey = (): void => {
   localStorage.removeItem('financify_encryption_key');
+  localStorage.removeItem('financify_encryption_enabled');
+};
+
+/**
+ * Check if encryption is enabled (persisted state)
+ */
+export const isEncryptionEnabled = (): boolean => {
+  return localStorage.getItem('financify_encryption_enabled') === 'true';
+};
+
+/**
+ * Set encryption enabled state
+ */
+export const setEncryptionEnabled = (enabled: boolean): void => {
+  if (enabled) {
+    localStorage.setItem('financify_encryption_enabled', 'true');
+  } else {
+    localStorage.removeItem('financify_encryption_enabled');
+  }
 };
 
 /**

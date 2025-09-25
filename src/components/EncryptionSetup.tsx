@@ -124,7 +124,15 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
         title: "Encryption unlocked",
         description: "Your encrypted data is now accessible.",
       });
-      try { await loadTransactions(); } catch {}
+      // Force reload transactions after a short delay to ensure state is updated
+      setTimeout(async () => {
+        try { 
+          console.log('🔄 Reloading transactions after encryption unlock...');
+          await loadTransactions(); 
+        } catch (error) {
+          console.error('Failed to reload transactions after unlock:', error);
+        }
+      }, 100);
       onComplete?.();
     } else {
       console.log('❌ Unlock failed:', result.error);
