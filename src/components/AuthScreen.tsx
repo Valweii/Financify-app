@@ -89,12 +89,9 @@ export const AuthScreen = ({ onAuthSuccess }: AuthScreenProps) => {
           throw error;
         }
 
-        toast({
-          title: "Account created!",
-          description: "Please check your email to confirm your account.",
-        });
-        // Offer quick resend action in case email delivery is slow
-        toast({ title: 'Didn\'t get it?', description: 'Click below to resend the email.' });
+        // Proceed immediately without blocking on email confirmation
+        toast({ title: "Account created", description: "You can start using the app now. Check your email to confirm later." });
+        onAuthSuccess();
       }
     } catch (error: any) {
       console.error('Auth error:', error);

@@ -1,5 +1,5 @@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Upload, PieChart, Settings, Users } from "lucide-react";
+import { BarChart3, Plus, PieChart, Settings, Users } from "lucide-react";
 import { useState } from "react";
 
 export type NavigationTab = "dashboard" | "import" | "split" | "reports" | "settings";
@@ -23,18 +23,18 @@ export const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
               <span className="text-xs">Dashboard</span>
             </TabsTrigger>
             <TabsTrigger 
-              value="import" 
-              className="flex-col gap-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              <Upload className="w-5 h-5" />
-              <span className="text-xs">Import</span>
-            </TabsTrigger>
-            <TabsTrigger 
               value="split" 
               className="flex-col gap-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
               <Users className="w-5 h-5" />
               <span className="text-xs">Split</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="import" 
+              className="flex-col gap-1 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <Plus className="w-5 h-5" />
+              <span className="text-xs">Add</span>
             </TabsTrigger>
             <TabsTrigger 
               value="reports" 

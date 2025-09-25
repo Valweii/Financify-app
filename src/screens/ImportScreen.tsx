@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { parseBcaStatementPdf } from "@/lib/bca-pdf-parser";
 
 export const ImportScreen = () => {
-  const { importedDraft, setImportedDraft, clearImportedDraft, saveTransactions } = useFinancifyStore();
+  const { user, importedDraft, setImportedDraft, clearImportedDraft, saveTransactions, createTransaction } = useFinancifyStore();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCategorizing, setIsCategorizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,8 +20,17 @@ export const ImportScreen = () => {
   const [editAmount, setEditAmount] = useState<string>("0");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const isEmailConfirmed = Boolean((user as any)?.email_confirmed_at);
 
-  // Removed mock data; we now parse the uploaded BCA PDF
+  // Manual Add Transaction form (moved from Reports -> All)
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [form, setForm] = useState<ImportedTransaction & { date: string }>({
+    date: new Date().toISOString().split('T')[0],
+    description: '',
+    type: 'debit',
+    amount_cents: 0,
+    category: 'Other',
+  });
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -160,6 +169,29 @@ export const ImportScreen = () => {
     });
   };
 
+  // If email not confirmed, show alert and hide add/import features
+  if (!isEmailConfirmed) {
+    return (
+      <div className="space-y-6 pb-20">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold">Add Transactions</h1>
+          <p className="text-muted-foreground">Confirm your email to start adding transactions</p>
+        </div>
+        <Card className="financial-card p-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-primary mt-0.5" />
+            <div>
+              <h3 className="font-semibold">Email confirmation required</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                We’ve sent a confirmation link to your email. Please confirm to enable adding transactions. You can still browse other tabs.
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-20">
       <div className="space-y-2">
@@ -173,6 +205,88 @@ export const ImportScreen = () => {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+
+      {/* Add Transaction (manual) */}
+      <Card className="financial-card p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Quick Add Transaction</h3>
+          <Button size="sm" className="btn-primary" onClick={() => setIsAddOpen(true)}>
+            <Plus className="w-4 h-4 mr-1" /> Add Transaction
+          </Button>
+        </div>
+        {isAddOpen && (
+          <div className="grid gap-3 py-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm text-muted-foreground">Date</label>
+                <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-sm text-muted-foreground">Income/Expense</label>
+                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as 'debit' | 'credit' })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="credit">Income</SelectItem>
+                    <SelectItem value="debit">Expense</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground">Description</label>
+              <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm text-muted-foreground">Amount (IDR)</label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={form.amount_cents}
+                  onChange={(e) => setForm({ ...form, amount_cents: Math.max(0, parseInt(e.target.value || '0', 10)) })}
+                />
+              </div>
+              <div>
+                <label className="text-sm text-muted-foreground">Category</label>
+                <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {['Income','Food & Drinks','Shopping','Bills & Utilities','Transport','Health','Housing','Education','Fees','Transfer','Other'].map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="btn-primary"
+                size="sm"
+                onClick={async () => {
+                  const trimmedDescription = (form.description || '').trim();
+                  const trimmedCategory = (form.category || '').trim();
+                  const isValidDate = Boolean(form.date);
+                  const isValidType = form.type === 'debit' || form.type === 'credit';
+                  const isValidAmount = Number.isFinite(form.amount_cents) && form.amount_cents > 0;
+                  const isValidCategory = trimmedCategory.length > 0;
+                  const isValidDescription = trimmedDescription.length > 0;
+                  if (!isValidDate || !isValidType || !isValidAmount || !isValidCategory || !isValidDescription) return;
+                  await createTransaction({ ...form, description: trimmedDescription, category: trimmedCategory });
+                  setIsAddOpen(false);
+                  setForm({ date: new Date().toISOString().split('T')[0], description: '', type: 'debit', amount_cents: 0, category: 'Other' });
+                }}
+              >
+                Save
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+      </Card>
 
       {/* Upload Section */}
       <Card className="financial-card p-6">
