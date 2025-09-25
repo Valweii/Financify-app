@@ -19,6 +19,21 @@ export const AuthScreen = ({ onAuthSuccess }: AuthScreenProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
+  const redirectUrl = `${window.location.origin}/`;
+
+  const handleResend = async () => {
+    try {
+      if (!email) {
+        toast({ title: 'Enter your email first', variant: 'destructive' });
+        return;
+      }
+      await supabase.auth.resend({ type: 'signup', email, options: { emailRedirectTo: redirectUrl } });
+      toast({ title: 'Confirmation Email Sent', description: 'Check your inbox (and spam folder).' });
+    } catch (error: any) {
+      console.error('Resend error:', error);
+      toast({ title: 'Failed to send email', description: error?.message || 'Try again later.', variant: 'destructive' });
+    }
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,8 +54,6 @@ export const AuthScreen = ({ onAuthSuccess }: AuthScreenProps) => {
         });
         onAuthSuccess();
       } else {
-        const redirectUrl = `${window.location.origin}/`;
-        
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -52,12 +65,36 @@ export const AuthScreen = ({ onAuthSuccess }: AuthScreenProps) => {
           }
         });
 
-        if (error) throw error;
+        if (error) {
+          // If the user was deleted only in public tables or already exists in auth,
+          // Supabase returns "User already registered". In that case, re-send the
+          // confirmation email so the user can confirm again.
+          if (typeof error.message === 'string' && error.message.toLowerCase().includes('already')) {
+            try {
+              await supabase.auth.resend({
+                type: 'signup',
+                email,
+                options: { emailRedirectTo: redirectUrl },
+              });
+              toast({
+                title: 'Confirmation Email Re-sent',
+                description: 'We have re-sent the verification link to your email.',
+              });
+              return;
+            } catch (resendErr: any) {
+              console.error('Resend error:', resendErr);
+              throw resendErr;
+            }
+          }
+          throw error;
+        }
 
         toast({
           title: "Account created!",
           description: "Please check your email to confirm your account.",
         });
+        // Offer quick resend action in case email delivery is slow
+        toast({ title: 'Didn\'t get it?', description: 'Click below to resend the email.' });
       }
     } catch (error: any) {
       console.error('Auth error:', error);
@@ -173,6 +210,14 @@ export const AuthScreen = ({ onAuthSuccess }: AuthScreenProps) => {
                 isLogin ? "Sign In" : "Create Account"
               )}
             </Button>
+
+            {!isLogin && (
+              <div className="text-center">
+                <button type="button" onClick={handleResend} className="text-sm text-primary hover:underline" disabled={isLoading || !email}>
+                  Resend confirmation email
+                </button>
+              </div>
+            )}
 
             <div className="text-center pt-4">
               <button

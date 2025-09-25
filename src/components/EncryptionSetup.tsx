@@ -31,21 +31,19 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
     currentKey,
     setupEncryption, 
     unlockEncryption,
+    resetWithBackupCode,
     encrypt,
     decrypt
   } = useEncryption();
   
-  const { setEncryptionKey, setEncryptionEnabled, loadTransactions } = useFinancifyStore();
+  const { setEncryptionKey, setEncryptionEnabled, loadTransactions, signOut } = useFinancifyStore();
 
-  // If encryption is already set up and the key becomes available (after unlock on refresh),
-  // ensure we load transactions automatically.
-  useEffect(() => {
-    if (currentKey) {
-      setEncryptionKey(currentKey);
-      // Load immediately after key availability to populate app state on refresh
-      loadTransactions();
-    }
-  }, [currentKey, setEncryptionKey, loadTransactions]);
+  // Recovery UI state
+  const [isRecoveryOpen, setIsRecoveryOpen] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState('');
+  const [newPass1, setNewPass1] = useState('');
+  const [newPass2, setNewPass2] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
 
   // Sync currentKey with store whenever it changes
   useEffect(() => {
@@ -126,12 +124,7 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
         title: "Encryption unlocked",
         description: "Your encrypted data is now accessible.",
       });
-      // Ensure encrypted transactions are fetched immediately for reports/dashboard
-      try {
-        await loadTransactions();
-      } catch (e) {
-        console.error('Failed reloading transactions after unlock:', e);
-      }
+      try { await loadTransactions(); } catch {}
       onComplete?.();
     } else {
       console.log('❌ Unlock failed:', result.error);
@@ -148,6 +141,33 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
   const handleBackupCodesComplete = () => {
     setShowBackupCodes(false);
     onComplete?.();
+  };
+
+  // Recovery handler
+  const handleResetWithCode = async () => {
+    if (!recoveryCode.trim()) {
+      toast({ title: 'Enter a backup code', variant: 'destructive' });
+      return;
+    }
+    if (newPass1.length < 8 || newPass1 !== newPass2) {
+      toast({ title: 'Invalid new password', description: 'Passwords must match and be at least 8 characters.', variant: 'destructive' });
+      return;
+    }
+    if (!resetWithBackupCode) return;
+    setIsResetting(true);
+    const result = await resetWithBackupCode(recoveryCode, newPass1);
+    setIsResetting(false);
+    if (result.success) {
+      setEncryptionEnabled(true);
+      setIsRecoveryOpen(false);
+      setRecoveryCode(''); setNewPass1(''); setNewPass2('');
+      toast({ title: 'Encryption reset', description: 'Your new password is set. New backup codes have been generated.' });
+      if (result.backupCodes) setBackupCodes(result.backupCodes), setShowBackupCodes(true);
+      try { await loadTransactions(); } catch {}
+      onComplete?.();
+    } else {
+      toast({ title: 'Recovery failed', description: result.error || 'Could not reset with backup code.', variant: 'destructive' });
+    }
   };
 
   if (showBackupCodes) {
@@ -233,6 +253,43 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
               </>
             )}
           </Button>
+          <Button 
+            variant="ghost" 
+            className="w-full text-muted-foreground"
+            onClick={() => setIsRecoveryOpen(v => !v)}
+          >
+            {isRecoveryOpen ? 'Hide recovery' : 'Forgot password? Use backup code'}
+          </Button>
+
+          <Button 
+            variant="ghost" 
+            className="w-full text-muted-foreground"
+            onClick={async () => { await signOut(); }}
+          >
+            Sign out
+          </Button>
+
+          {isRecoveryOpen && (
+            <div className="mt-3 space-y-3 text-left">
+              <div>
+                <label className="text-sm text-muted-foreground">Backup Code</label>
+                <Input value={recoveryCode} onChange={(e) => setRecoveryCode(e.target.value)} placeholder="Enter a backup code" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm text-muted-foreground">New Password</label>
+                  <Input type="password" value={newPass1} onChange={(e) => setNewPass1(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">Confirm New Password</label>
+                  <Input type="password" value={newPass2} onChange={(e) => setNewPass2(e.target.value)} />
+                </div>
+              </div>
+              <Button onClick={handleResetWithCode} disabled={isResetting} className="btn-primary w-full">
+                {isResetting ? 'Resetting...' : 'Reset with Backup Code'}
+              </Button>
+            </div>
+          )}
         </div>
       </Card>
     );

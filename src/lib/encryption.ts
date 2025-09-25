@@ -46,7 +46,7 @@ export const deriveKeyFromPassword = async (
     },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
-    false,
+    true,
     ['encrypt', 'decrypt']
   );
 };
@@ -118,6 +118,60 @@ export const decryptData = async (
 
   const decoded = new TextDecoder().decode(decrypted);
   return JSON.parse(decoded);
+};
+
+/**
+ * Low-level helpers for caching keys locally (device-only convenience):
+ * We export/import the raw AES-GCM key and wrap it with a device-local wrapping key.
+ */
+
+export const exportRawKey = async (key: CryptoKey): Promise<Uint8Array> => {
+  const raw = await crypto.subtle.exportKey('raw', key);
+  return new Uint8Array(raw);
+};
+
+export const importRawKey = async (raw: Uint8Array): Promise<CryptoKey> => {
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+};
+
+// Create or load a device wrapping key (stored as raw bytes in localStorage)
+const getDeviceWrappingKey = async (): Promise<CryptoKey> => {
+  let rawStr = localStorage.getItem('financify_device_wrap_key');
+  let raw: Uint8Array;
+  if (!rawStr) {
+    raw = crypto.getRandomValues(new Uint8Array(32));
+    localStorage.setItem('financify_device_wrap_key', JSON.stringify(Array.from(raw)));
+  } else {
+    raw = new Uint8Array(JSON.parse(rawStr));
+  }
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+};
+
+export const cacheCryptoKey = async (key: CryptoKey): Promise<void> => {
+  const wrappingKey = await getDeviceWrappingKey();
+  const raw = await exportRawKey(key);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrappingKey, raw);
+  localStorage.setItem('financify_cached_key', JSON.stringify({
+    iv: Array.from(iv),
+    data: Array.from(new Uint8Array(encrypted))
+  }));
+};
+
+export const loadCachedCryptoKey = async (): Promise<CryptoKey | null> => {
+  const stored = localStorage.getItem('financify_cached_key');
+  if (!stored) return null;
+  try {
+    const parsed = JSON.parse(stored);
+    const wrappingKey = await getDeviceWrappingKey();
+    const iv = new Uint8Array(parsed.iv);
+    const data = new Uint8Array(parsed.data);
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, wrappingKey, data);
+    const raw = new Uint8Array(decrypted);
+    return importRawKey(raw);
+  } catch {
+    return null;
+  }
 };
 
 /**

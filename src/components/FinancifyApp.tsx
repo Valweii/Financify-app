@@ -10,6 +10,7 @@ import { useFinancifyStore } from "@/store";
 import { supabase } from "@/integrations/supabase/client";
 import { useEncryption } from "@/hooks/useEncryption";
 import { EncryptionSetup } from "@/components/EncryptionSetup";
+import { FirstTimeEncryption } from "@/components/FirstTimeEncryption";
 
 export const FinancifyApp = () => {
   const [activeTab, setActiveTab] = useState<NavigationTab>("dashboard");
@@ -67,6 +68,16 @@ export const FinancifyApp = () => {
     return () => subscription.unsubscribe();
   }, [setUser, setSession, loadTransactions, loadProfile]);
 
+  // After unlock: when encryption is enabled and key is available, ensure we load encrypted transactions immediately.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (isEncryptionEnabled && encryptionKey) {
+      setTimeout(() => {
+        loadTransactions();
+      }, 0);
+    }
+  }, [isAuthenticated, isEncryptionEnabled, encryptionKey, loadTransactions]);
+
   const handleAuthSuccess = () => {
     // Auth state change will be handled by the listener
   };
@@ -87,7 +98,9 @@ export const FinancifyApp = () => {
   }
 
   // Show encryption setup/unlock if needed before entering the app
-  const needsEncryptionGate = isAuthenticated && !isKeyLoading && (!isKeySetup || (isKeySetup && (!isEncryptionEnabled || !encryptionKey)));
+  // Show the gate only when the auto-restore has finished (isKeyLoading === false)
+  // and we still have no active key while encryption is enabled or set up.
+  const needsEncryptionGate = isAuthenticated && !isKeyLoading && (!encryptionKey) && (isEncryptionEnabled || isKeySetup);
   if (needsEncryptionGate) {
     return (
       <div className="min-h-screen bg-background">
@@ -106,7 +119,8 @@ export const FinancifyApp = () => {
                 <h1 className="text-2xl font-bold">Welcome to Financify</h1>
                 <p className="text-muted-foreground">Set up end-to-end encryption to protect your financial data</p>
               </div>
-              <EncryptionSetup />
+              {/* If encryption not set up yet, generate and display password once */}
+              {!isKeySetup ? <FirstTimeEncryption /> : <EncryptionSetup />}
             </div>
           </main>
         </div>
