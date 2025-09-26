@@ -265,6 +265,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
                     amount={transaction.type === 'credit' ? transaction.amount_cents : -transaction.amount_cents}
                     showSign
                     size="md"
+                    animate={false}
                   />
                 </div>
               </Card>

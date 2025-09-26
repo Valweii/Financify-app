@@ -2,6 +2,7 @@ import { Card } from "@/components/ui/card";
 import { MoneyDisplay } from "./MoneyDisplay";
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
+import { useCounterAnimation } from "@/hooks/useCounterAnimation";
 
 interface StatCardProps {
   title: string;
@@ -10,6 +11,7 @@ interface StatCardProps {
   icon?: LucideIcon;
   type?: "income" | "expense" | "neutral";
   className?: string;
+  animate?: boolean;
 }
 
 export const StatCard = ({ 
@@ -18,8 +20,16 @@ export const StatCard = ({
   subtitle, 
   icon: Icon,
   type = "neutral",
-  className 
+  className,
+  animate = true
 }: StatCardProps) => {
+  const { currentValue } = useCounterAnimation(amount, {
+    duration: 1000,
+    startDelay: 300,
+    easeOut: true
+  });
+
+  const displayAmount = animate ? currentValue : amount;
   const getTypeStyles = () => {
     switch (type) {
       case "income":
@@ -45,7 +55,7 @@ export const StatCard = ({
 
       {/* Amount (without currency) */}
       {(() => {
-        const formatted = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.abs(amount));
+        const formatted = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.abs(displayAmount));
         const colorClass = type === "income" ? "text-green-600 dark:text-green-400" : type === "expense" ? "text-red-600 dark:text-red-400" : "text-foreground";
         return (
           <div className={cn("px-0.5", colorClass)}>

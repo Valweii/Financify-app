@@ -214,6 +214,7 @@ export const ReportsScreen = () => {
                         amount={transaction.type === 'credit' ? transaction.amount_cents : -transaction.amount_cents}
                         showSign
                         size="md"
+                        animate={false}
                       />
                     </div>
                     <div className={`overflow-hidden transition-all duration-300 ${expandedTransaction === transaction.id ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
@@ -337,6 +338,7 @@ export const ReportsScreen = () => {
                           amount={stat.total}
                           showSign
                           size="md"
+                          animate={false}
                         />
                       </div>
                       
@@ -344,12 +346,12 @@ export const ReportsScreen = () => {
                         <div className="grid grid-cols-2 gap-3 text-sm">
                           {stat.income > 0 && (
                             <div className="text-income">
-                              Income: <MoneyDisplay amount={stat.income} size="sm" />
+                              Income: <MoneyDisplay amount={stat.income} size="sm" animate={false} />
                             </div>
                           )}
                           {stat.expense > 0 && (
                             <div className="text-expense">
-                              Expense: <MoneyDisplay amount={stat.expense} size="sm" />
+                              Expense: <MoneyDisplay amount={stat.expense} size="sm" animate={false} />
                             </div>
                           )}
                         </div>
@@ -379,7 +381,7 @@ export const ReportsScreen = () => {
                                 </div>
                               </div>
                               <div className="text-right">
-                                <MoneyDisplay amount={t.type === 'credit' ? t.amount_cents : -t.amount_cents} showSign size="md" />
+                                <MoneyDisplay amount={t.type === 'credit' ? t.amount_cents : -t.amount_cents} showSign size="md" animate={false} />
                               </div>
                             </div>
                           ))}
@@ -425,7 +427,7 @@ export const ReportsScreen = () => {
                     </div>
                   </div>
                   <div className="flex items-center">
-                    <MoneyDisplay amount={t.type === 'credit' ? t.amount_cents : -t.amount_cents} showSign size="md" />
+                    <MoneyDisplay amount={t.type === 'credit' ? t.amount_cents : -t.amount_cents} showSign size="md" animate={false} />
                     <Button variant="ghost" size="icon" onClick={() => deleteTransaction(t.id)} className="ml-2 text-destructive hover:text-destructive">
                       <Trash2 className="w-4 h-4" />
                     </Button>

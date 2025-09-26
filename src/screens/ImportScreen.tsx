@@ -483,6 +483,7 @@ export const ImportScreen = () => {
                         amount={transaction.type === 'credit' ? transaction.amount_cents : -transaction.amount_cents}
                         showSign
                         size="md"
+                        animate={false}
                       />
                       <div className="flex gap-1">
                         <Button

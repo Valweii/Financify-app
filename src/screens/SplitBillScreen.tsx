@@ -325,7 +325,7 @@ export const SplitBillScreen = () => {
                             </div>
             <div className="flex items-center gap-2">
                               <div className="w-24 text-right">
-                                <MoneyDisplay amount={it.price_cents} size="md" />
+                                <MoneyDisplay amount={it.price_cents} size="md" animate={false} />
                               </div>
                               <Button
                                 variant="ghost"
@@ -399,7 +399,7 @@ export const SplitBillScreen = () => {
                   <span className="font-medium truncate">{p.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <MoneyDisplay amount={personTotals[p.id]?.total_cents || 0} size="md" />
+                  <MoneyDisplay amount={personTotals[p.id]?.total_cents || 0} size="md" animate={false} />
                   <Button variant="ghost" size="icon" onClick={() => removePerson(p.id)} className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
                 </div>
               </div>
@@ -480,7 +480,7 @@ export const SplitBillScreen = () => {
               <div className="rounded-lg border border-border/50 p-3 mb-3 bg-muted/30">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-medium">{people.find(p => p.id === assignPersonId)?.name || 'Current participant'} current total</div>
-                  <MoneyDisplay amount={personTotals[assignPersonId]?.total_cents || 0} size="md" />
+                  <MoneyDisplay amount={personTotals[assignPersonId]?.total_cents || 0} size="md" animate={false} />
               </div>
             </div>
           )}
@@ -532,7 +532,7 @@ export const SplitBillScreen = () => {
                     </div>
                     <div className="flex items-center justify-end gap-3">
                       <div className="w-24 text-right">
-                        <MoneyDisplay amount={it.price_cents} size="md" />
+                        <MoneyDisplay amount={it.price_cents} size="md" animate={false} />
                       </div>
                       {isEditMode && (
                       <Button
@@ -576,7 +576,7 @@ export const SplitBillScreen = () => {
                     <span className="font-medium text-lg">{p.name}</span>
                     <div className="text-right">
                       <div className="text-sm text-muted-foreground">Total</div>
-                      <div className="font-semibold text-lg"><MoneyDisplay amount={details?.total_cents || 0} size="lg" /></div>
+                      <div className="font-semibold text-lg"><MoneyDisplay amount={details?.total_cents || 0} size="lg" animate={false} /></div>
                     </div>
                   </div>
                   
@@ -588,7 +588,7 @@ export const SplitBillScreen = () => {
                         {details.shares.map(s => (
                           <div key={s.itemId} className="flex items-center justify-between text-sm py-1">
                             <span className="text-foreground truncate pr-2">{s.name}</span>
-                            <MoneyDisplay amount={s.share_cents} size="sm" />
+                            <MoneyDisplay amount={s.share_cents} size="sm" animate={false} />
                           </div>
                         ))}
                       </>
@@ -602,18 +602,18 @@ export const SplitBillScreen = () => {
                         <div className="text-sm font-medium text-muted-foreground">Breakdown:</div>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">Subtotal</span>
-                          <MoneyDisplay amount={details?.subtotal_cents || 0} size="sm" />
+                          <MoneyDisplay amount={details?.subtotal_cents || 0} size="sm" animate={false} />
                         </div>
                         {(details?.service_cents || 0) > 0 && (
                           <div className="flex items-center justify-between text-sm">
                             <span className="text-muted-foreground">Service Fee</span>
-                            <MoneyDisplay amount={details?.service_cents || 0} size="sm" />
+                            <MoneyDisplay amount={details?.service_cents || 0} size="sm" animate={false} />
                           </div>
                         )}
                         {(details?.tax_cents || 0) > 0 && (
                           <div className="flex items-center justify-between text-sm">
                             <span className="text-muted-foreground">Tax</span>
-                            <MoneyDisplay amount={details?.tax_cents || 0} size="sm" />
+                            <MoneyDisplay amount={details?.tax_cents || 0} size="sm" animate={false} />
                           </div>
                         )}
                       </div>

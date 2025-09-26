@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useCounterAnimation } from "@/hooks/useCounterAnimation";
 
 interface MoneyDisplayProps {
   amount: number;
@@ -6,6 +7,7 @@ interface MoneyDisplayProps {
   className?: string;
   showSign?: boolean;
   size?: "sm" | "md" | "lg" | "xl";
+  animate?: boolean;
 }
 
 export const MoneyDisplay = ({ 
@@ -13,8 +15,16 @@ export const MoneyDisplay = ({
   currency = "IDR", 
   className,
   showSign = false,
-  size = "md"
+  size = "md",
+  animate = true
 }: MoneyDisplayProps) => {
+  const { currentValue } = useCounterAnimation(amount, {
+    duration: 1200,
+    startDelay: 200,
+    easeOut: true
+  });
+
+  const displayAmount = animate ? currentValue : amount;
   const formatAmount = (value: number) => {
     // Format as Indonesian Rupiah without forcing absolute value
     return new Intl.NumberFormat('id-ID', {
@@ -50,7 +60,7 @@ export const MoneyDisplay = ({
       )}
       title={formatAmount(amount)}
     >
-      {formatAmount(amount)}
+      {formatAmount(displayAmount)}
     </span>
   );
 };
