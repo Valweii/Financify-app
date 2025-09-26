@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useFinancifyStore } from "@/store";
-import { User, LogOut, Shield, HelpCircle, ExternalLink, Moon } from "lucide-react";
+import { User, LogOut, Shield, HelpCircle, ExternalLink, Moon, ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -21,6 +21,7 @@ export const SettingsScreen = () => {
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSecurityExpanded, setIsSecurityExpanded] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -115,26 +116,59 @@ export const SettingsScreen = () => {
         </Card>
       )}
 
-      {/* Encryption Section */}
+      {/* Security & Privacy Section - Expandable */}
       {user && (
-        <div id="encryption-section" className="space-y-4">
-          <div className="space-y-2">
-            <h2 className="text-lg font-semibold">Security & Privacy</h2>
-            <p className="text-sm text-muted-foreground">Protect your financial data with end-to-end encryption</p>
-          </div>
-          
-          {isKeyLoading ? (
-            <Card className="financial-card p-6">
-              <div className="flex items-center justify-center space-y-4">
-                <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                <p className="text-sm text-muted-foreground">Loading encryption status...</p>
+        <div className="space-y-4">
+          <Card className="financial-card p-0 overflow-hidden">
+            {/* Security & Privacy Header - Clickable */}
+            <button
+              onClick={() => setIsSecurityExpanded(!isSecurityExpanded)}
+              className="w-full p-6 text-left hover:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                    <Shield className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold">Security & Privacy</h2>
+                    <p className="text-sm text-muted-foreground">Protect your financial data with end-to-end encryption</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isKeySetup && (
+                    <div className="flex items-center gap-1 text-xs text-success px-2 py-1 bg-success/10 rounded-full">
+                      <div className="w-2 h-2 bg-success rounded-full"></div>
+                      <span>Encrypted</span>
+                    </div>
+                  )}
+                  {isSecurityExpanded ? (
+                    <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                  )}
+                </div>
               </div>
-            </Card>
-          ) : isKeySetup ? (
-            <EncryptionStatus />
-          ) : (
-            <EncryptionSetup />
-          )}
+            </button>
+
+            {/* Expandable Content */}
+            <div className={`transition-all duration-300 ease-in-out overflow-hidden ${
+              isSecurityExpanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'
+            }`}>
+              <div className="px-6 pt-4 pb-6 border-t border-border">
+                {isKeyLoading ? (
+                  <div className="flex items-center justify-center space-y-4 py-8">
+                    <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    <p className="text-sm text-muted-foreground">Loading encryption status...</p>
+                  </div>
+                ) : isKeySetup ? (
+                  <EncryptionStatus />
+                ) : (
+                  <EncryptionSetup />
+                )}
+              </div>
+            </div>
+          </Card>
         </div>
       )}
 
