@@ -2,7 +2,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart3, Plus, PieChart, Settings, Users } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 
-export type NavigationTab = "dashboard" | "import" | "split" | "reports" | "settings";
+export type NavigationTab = "dashboard" | "split" | "reports" | "settings";
 
 interface NavigationProps {
   activeTab: NavigationTab;
@@ -12,7 +12,7 @@ interface NavigationProps {
 export const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
   const [highlightStyle, setHighlightStyle] = useState<React.CSSProperties>({});
   const tabsListRef = useRef<HTMLDivElement>(null);
-  const tabs = ["dashboard", "split", "import", "reports", "settings"] as const;
+  const tabs = ["dashboard", "split", "reports", "settings"] as const;
 
   useEffect(() => {
     const updateHighlightPosition = () => {
@@ -52,7 +52,7 @@ export const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
         <Tabs value={activeTab} onValueChange={(value) => onTabChange(value as NavigationTab)}>
           <TabsList 
             ref={tabsListRef}
-            className="grid w-full grid-cols-5 bg-secondary h-14 relative"
+            className="grid w-full grid-cols-4 bg-secondary h-14 relative"
           >
             {/* Animated highlight background */}
             <div style={highlightStyle} />
@@ -70,13 +70,6 @@ export const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
             >
               <Users className="w-5 h-5" />
               <span className="text-xs">Split</span>
-            </TabsTrigger>
-            <TabsTrigger 
-              value="import" 
-              className="flex-col gap-1 relative z-10 data-[state=active]:text-primary-foreground data-[state=inactive]:text-muted-foreground data-[state=active]:bg-transparent data-[state=inactive]:bg-transparent"
-            >
-              <Plus className="w-5 h-5" />
-              <span className="text-xs">Add</span>
             </TabsTrigger>
             <TabsTrigger 
               value="reports" 

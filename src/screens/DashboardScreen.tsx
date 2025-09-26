@@ -6,7 +6,7 @@ import { useFinancifyStore } from "@/store";
 import { Upload, TrendingUp, TrendingDown, Wallet, ArrowRight, PieChart } from "lucide-react";
 import { NavigationTab } from "@/components/Navigation";
 import heroImage from "@/assets/financify-hero.jpg";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
@@ -24,6 +24,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
     getMonthlyStats, 
     getRecentTransactions,
     transactions,
+    isLoading,
   } = useFinancifyStore();
 
   const totalBalance = getTotalBalance();
@@ -32,7 +33,19 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
 
   const [graphType, setGraphType] = useState<'income' | 'expense'>('income');
   const [chartMonth, setChartMonth] = useState<Date>(new Date());
+  const [chartReady, setChartReady] = useState(false);
   const monthYearLabel = useMemo(() => chartMonth.toLocaleString('en-US', { month: 'long', year: 'numeric' }), [chartMonth]);
+
+  // Enable chart animation only after data is loaded
+  useEffect(() => {
+    if (!isLoading && transactions.length >= 0) {
+      // Small delay to ensure smooth transition
+      const timer = setTimeout(() => {
+        setChartReady(true);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, transactions.length]);
 
   const chartData = useMemo(() => {
     const y = chartMonth.getFullYear();
@@ -177,13 +190,21 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
           </ToggleGroup>
         </div>
         <Card className="financial-card p-0 overflow-hidden">
-          <ChartContainer
-            config={{
-              income: { label: 'Income', color: '#16a34a' },
-              expense: { label: 'Expense', color: '#ef4444' },
-            }}
-            className="aspect-[16/9] -m-1"
-          >
+          {isLoading ? (
+            <div className="aspect-[16/9] flex items-center justify-center">
+              <div className="text-center space-y-2">
+                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <p className="text-sm text-muted-foreground">Loading chart data...</p>
+              </div>
+            </div>
+          ) : (
+            <ChartContainer
+              config={{
+                income: { label: 'Income', color: '#16a34a' },
+                expense: { label: 'Expense', color: '#ef4444' },
+              }}
+              className="aspect-[16/9] -m-1"
+            >
             <AreaChart data={chartData} margin={{ left: 0, right: 20, top: 20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis 
@@ -204,38 +225,18 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
               <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
               {graphType === 'income' ? (
                 <Area key="income" type="monotone" dataKey="income" stroke="var(--color-income)" fill="var(--color-income)" fillOpacity={0.25}
-                  isAnimationActive animationDuration={500} animationEasing="ease-in-out" />
+                  isAnimationActive={chartReady} animationDuration={500} animationEasing="ease-in-out" />
               ) : (
                 <Area key="expense" type="monotone" dataKey="expense" stroke="var(--color-expense)" fill="var(--color-expense)" fillOpacity={0.25}
-                  isAnimationActive animationDuration={500} animationEasing="ease-in-out" />
+                  isAnimationActive={chartReady} animationDuration={500} animationEasing="ease-in-out" />
               )}
             </AreaChart>
-          </ChartContainer>
+            </ChartContainer>
+          )}
         </Card>
       </div>
 
 
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-lg font-semibold mb-3">Quick Actions</h2>
-        <Card 
-          className="financial-card p-4 cursor-pointer hover:shadow-[var(--shadow-float)] transition-all"
-          onClick={() => onNavigate('import')}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                <Upload className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Import Bank PDF</h3>
-                <p className="text-sm text-muted-foreground">Upload your bank statement</p>
-              </div>
-            </div>
-            <ArrowRight className="w-5 h-5 text-muted-foreground" />
-          </div>
-        </Card>
-      </div>
 
       {/* Recent Activity */}
       <div>

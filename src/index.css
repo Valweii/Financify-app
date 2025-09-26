@@ -103,6 +103,13 @@ All colors MUST be HSL.
 @layer base {
   * {
     @apply border-border;
+    /* Hide all scrollbars globally */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+
+  *::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
   }
 
   body {
@@ -159,6 +166,9 @@ All colors MUST be HSL.
     width: 100%;
     min-width: 100%;
     display: block; /* Change back to block to match original layout */
+    overflow-y: auto; /* Allow vertical scrolling within each page */
+    max-height: calc(100vh - 140px); /* Account for header and navigation */
+    position: relative; /* Enable absolute positioning for FAB */
   }
   
   .horizontal-scroll-item > * {
@@ -191,13 +201,28 @@ All colors MUST be HSL.
     width: 200px;
     height: 200px;
   }
+
+  /* FAB fixed positioning */
+  .fab-container {
+    position: fixed;
+    bottom: 5.5rem; /* Above the navigation bar with margin */
+    right: 1rem;
+    z-index: 50; /* Above navigation */
+  }
+
+  /* Mobile and Desktop - same positioning */
+  @media (max-width: 768px) {
+    .fab-container {
+      bottom: 5.5rem;
+      right: 1rem;
+    }
+  }
+
+  @media (min-width: 769px) {
+    .fab-container {
+      bottom: 5.5rem;
+      right: 1rem;
+    }
+  }
 }
 
-/* Hide scrollbar for balance chart */
-.scrollbar-hide {
-  -ms-overflow-style: none;  /* Internet Explorer 10+ */
-  scrollbar-width: none;  /* Firefox */
-}
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;  /* Safari and Chrome */
-}

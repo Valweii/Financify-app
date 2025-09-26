@@ -6,6 +6,9 @@ import { SplitBillScreen } from "@/screens/SplitBillScreen";
 import { ReportsScreen } from "@/screens/ReportsScreen";
 import { SettingsScreen } from "@/screens/SettingsScreen";
 import { AuthScreen } from "./AuthScreen";
+import { FloatingActionButton } from "./FloatingActionButton";
+import { TransactionInputDialog } from "./TransactionInputDialog";
+import { PDFUploadForm } from "./PDFUploadForm";
 import { useFinancifyStore } from "@/store";
 import { supabase } from "@/integrations/supabase/client";
 import { useEncryption } from "@/hooks/useEncryption";
@@ -17,6 +20,9 @@ export const FinancifyApp = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [previousTab, setPreviousTab] = useState<NavigationTab>("dashboard");
+  const [showImportScreen, setShowImportScreen] = useState(false);
+  const [showTransactionDialog, setShowTransactionDialog] = useState(false);
+  const [showPDFUpload, setShowPDFUpload] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const { 
     user, 
@@ -110,7 +116,7 @@ export const FinancifyApp = () => {
   useEffect(() => {
     if (!contentRef.current) return;
     
-    const tabOrder = ["dashboard", "split", "import", "reports", "settings"];
+    const tabOrder = ["dashboard", "split", "reports", "settings"];
     const tabIndex = tabOrder.indexOf(activeTab);
     
     // Calculate scroll position accounting for gap (2rem = 32px)
@@ -119,6 +125,12 @@ export const FinancifyApp = () => {
     
     // Set scroll position without animation for initial load
     contentRef.current.scrollLeft = scrollPosition;
+    
+    // Scroll to top of the current page
+    const currentPageElement = contentRef.current.children[tabIndex] as HTMLElement;
+    if (currentPageElement) {
+      currentPageElement.scrollTop = 0;
+    }
   }, [activeTab]);
 
   const handleAuthSuccess = () => {
@@ -132,7 +144,7 @@ export const FinancifyApp = () => {
     setIsTransitioning(true);
     
     // Calculate scroll position based on tab order
-    const tabOrder = ["dashboard", "split", "import", "reports", "settings"];
+    const tabOrder = ["dashboard", "split", "reports", "settings"];
     const tabIndex = tabOrder.indexOf(newTab);
     
     // Calculate scroll position accounting for gap (2rem = 32px)
@@ -149,6 +161,17 @@ export const FinancifyApp = () => {
     
     // Update active tab immediately
     setActiveTab(newTab);
+    
+    // Scroll to top of the page content
+    setTimeout(() => {
+      const currentPageElement = contentRef.current?.children[tabIndex] as HTMLElement;
+      if (currentPageElement) {
+        currentPageElement.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        });
+      }
+    }, 100);
     
     // End transition
     setTimeout(() => {
@@ -206,8 +229,6 @@ export const FinancifyApp = () => {
     switch (tab) {
       case "dashboard":
         return <DashboardScreen onNavigate={handleTabChange} />;
-      case "import":
-        return <ImportScreen />;
       case "split":
         return <SplitBillScreen />;
       case "reports":
@@ -217,6 +238,14 @@ export const FinancifyApp = () => {
       default:
         return <DashboardScreen onNavigate={handleTabChange} />;
     }
+  };
+
+  const handleImportPDF = () => {
+    setShowPDFUpload(true);
+  };
+
+  const handleInputTransaction = () => {
+    setShowTransactionDialog(true);
   };
 
   return (
@@ -249,11 +278,6 @@ export const FinancifyApp = () => {
               {renderScreen("split")}
             </div>
             
-            {/* Import Screen */}
-            <div className="horizontal-scroll-item">
-              {renderScreen("import")}
-            </div>
-            
             {/* Reports Screen */}
             <div className="horizontal-scroll-item">
               {renderScreen("reports")}
@@ -266,9 +290,71 @@ export const FinancifyApp = () => {
           </div>
         </main>
 
+        {/* Floating Action Button - Single instance, fixed position */}
+        <FloatingActionButton 
+          onImportPDF={handleImportPDF}
+          onInputTransaction={handleInputTransaction}
+        />
+
         {/* Bottom Navigation */}
         <Navigation activeTab={activeTab} onTabChange={handleTabChange} />
       </div>
+
+      {/* Transaction Input Dialog */}
+      <TransactionInputDialog 
+        isOpen={showTransactionDialog}
+        onClose={() => setShowTransactionDialog(false)}
+      />
+
+      {/* PDF Upload Modal */}
+      {showPDFUpload && (
+        <div className="fixed inset-0 bg-background z-50">
+          <div className="max-w-md mx-auto bg-background min-h-screen">
+            {/* Header */}
+            <div className="sticky top-0 bg-background/80 backdrop-blur-sm border-b border-border z-40">
+              <div className="px-4 py-4 flex items-center justify-between">
+                <h1 className="text-xl font-bold text-primary">Import PDF</h1>
+                <button 
+                  onClick={() => setShowPDFUpload(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            
+            {/* PDF Upload Content */}
+            <div className="px-4 py-4">
+              <PDFUploadForm onClose={() => setShowPDFUpload(false)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Screen Modal */}
+      {showImportScreen && (
+        <div className="fixed inset-0 bg-background z-50">
+          <div className="max-w-md mx-auto bg-background min-h-screen">
+            {/* Header */}
+            <div className="sticky top-0 bg-background/80 backdrop-blur-sm border-b border-border z-40">
+              <div className="px-4 py-4 flex items-center justify-between">
+                <h1 className="text-xl font-bold text-primary">Import Transactions</h1>
+                <button 
+                  onClick={() => setShowImportScreen(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            
+            {/* Import Screen Content */}
+            <div className="px-4 py-4">
+              <ImportScreen />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
