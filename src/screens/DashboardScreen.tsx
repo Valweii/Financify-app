@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/StatCard";
 import { MoneyDisplay } from "@/components/MoneyDisplay";
 import { useFinancifyStore } from "@/store";
-import { Upload, TrendingUp, TrendingDown, Wallet, ArrowRight, ChevronLeft, ChevronRight, PieChart } from "lucide-react";
+import { Upload, TrendingUp, TrendingDown, Wallet, ArrowRight, PieChart } from "lucide-react";
 import { NavigationTab } from "@/components/Navigation";
 import heroImage from "@/assets/financify-hero.jpg";
 import { useMemo, useState } from "react";
@@ -69,6 +69,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
     }
     return max || 0;
   }, [chartData]);
+
 
   return (
     <div className="space-y-6 pb-20">
@@ -175,18 +176,29 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
             <ToggleGroupItem value="expense">Expense</ToggleGroupItem>
           </ToggleGroup>
         </div>
-        <Card className="financial-card p-4">
+        <Card className="financial-card p-0 overflow-hidden">
           <ChartContainer
             config={{
               income: { label: 'Income', color: '#16a34a' },
               expense: { label: 'Expense', color: '#ef4444' },
             }}
-            className="aspect-[16/9]"
+            className="aspect-[16/9] -m-1"
           >
-            <AreaChart data={chartData} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+            <AreaChart data={chartData} margin={{ left: 0, right: 20, top: 20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" tickLine={false} axisLine={false} />
-              <YAxis tickLine={false} axisLine={false} width={60} domain={[0, chartMax]}
+              <XAxis 
+                dataKey="day" 
+                tickLine={false} 
+                axisLine={false} 
+                height={30}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis 
+                tickLine={false} 
+                axisLine={false} 
+                width={50} 
+                domain={[0, chartMax]}
+                tick={{ fontSize: 11 }}
                 tickFormatter={(v) => v >= 1_000_000 ? `${Math.round(v/1_000_000)}M` : v >= 1_000 ? `${Math.round(v/1_000)}K` : `${v}`}
               />
               <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
@@ -201,6 +213,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
           </ChartContainer>
         </Card>
       </div>
+
 
       {/* Quick Actions */}
       <div>

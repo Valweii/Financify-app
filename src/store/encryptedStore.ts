@@ -75,7 +75,7 @@ export const useEncryptedStore = (): EncryptedStore => {
       const decoded = new TextDecoder().decode(decrypted);
       return JSON.parse(decoded);
     } catch (error) {
-      console.error('Failed to decrypt transaction:', error);
+      // console.error('Failed to decrypt transaction:', error);
       return null;
     }
   };

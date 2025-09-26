@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigation, NavigationTab } from "./Navigation";
 import { DashboardScreen } from "@/screens/DashboardScreen";
 import { ImportScreen } from "@/screens/ImportScreen";
@@ -15,6 +15,9 @@ import { FirstTimeEncryption } from "@/components/FirstTimeEncryption";
 export const FinancifyApp = () => {
   const [activeTab, setActiveTab] = useState<NavigationTab>("dashboard");
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [previousTab, setPreviousTab] = useState<NavigationTab>("dashboard");
+  const contentRef = useRef<HTMLDivElement>(null);
   const { 
     user, 
     isAuthenticated, 
@@ -103,8 +106,54 @@ export const FinancifyApp = () => {
     }
   }, [isAuthenticated, isEncryptionEnabled, encryptionKey, loadTransactions]);
 
+  // Set initial scroll position and handle scroll position changes
+  useEffect(() => {
+    if (!contentRef.current) return;
+    
+    const tabOrder = ["dashboard", "split", "import", "reports", "settings"];
+    const tabIndex = tabOrder.indexOf(activeTab);
+    
+    // Calculate scroll position accounting for gap (2rem = 32px)
+    const gap = 32; // 2rem in pixels
+    const scrollPosition = (contentRef.current.offsetWidth + gap) * tabIndex;
+    
+    // Set scroll position without animation for initial load
+    contentRef.current.scrollLeft = scrollPosition;
+  }, [activeTab]);
+
   const handleAuthSuccess = () => {
     // Auth state change will be handled by the listener
+  };
+
+  const handleTabChange = (newTab: NavigationTab) => {
+    if (newTab === activeTab || isTransitioning) return;
+    
+    setPreviousTab(activeTab);
+    setIsTransitioning(true);
+    
+    // Calculate scroll position based on tab order
+    const tabOrder = ["dashboard", "split", "import", "reports", "settings"];
+    const tabIndex = tabOrder.indexOf(newTab);
+    
+    // Calculate scroll position accounting for gap (2rem = 32px)
+    const gap = 32; // 2rem in pixels
+    const scrollPosition = ((contentRef.current?.offsetWidth || 0) + gap) * tabIndex;
+    
+    // Scroll to the new position
+    if (contentRef.current) {
+      contentRef.current.scrollTo({
+        left: scrollPosition,
+        behavior: 'smooth'
+      });
+    }
+    
+    // Update active tab immediately
+    setActiveTab(newTab);
+    
+    // End transition
+    setTimeout(() => {
+      setIsTransitioning(false);
+    }, 350);
   };
 
   if (!isInitialized) {
@@ -153,10 +202,10 @@ export const FinancifyApp = () => {
     );
   }
 
-  const renderScreen = () => {
-    switch (activeTab) {
+  const renderScreen = (tab: NavigationTab) => {
+    switch (tab) {
       case "dashboard":
-        return <DashboardScreen onNavigate={setActiveTab} />;
+        return <DashboardScreen onNavigate={handleTabChange} />;
       case "import":
         return <ImportScreen />;
       case "split":
@@ -166,7 +215,7 @@ export const FinancifyApp = () => {
       case "settings":
         return <SettingsScreen />;
       default:
-        return <DashboardScreen onNavigate={setActiveTab} />;
+        return <DashboardScreen onNavigate={handleTabChange} />;
     }
   };
 
@@ -181,12 +230,44 @@ export const FinancifyApp = () => {
         </div>
 
         {/* Main Content */}
-        <main className="px-4 py-4">
-          {renderScreen()}
+        <main className="px-4 py-4 relative overflow-hidden">
+          <div 
+            ref={contentRef}
+            className="horizontal-scroll-container"
+            style={{
+              width: '100%',
+              height: '100%'
+            }}
+          >
+            {/* Dashboard Screen */}
+            <div className="horizontal-scroll-item">
+              {renderScreen("dashboard")}
+            </div>
+            
+            {/* Split Bill Screen */}
+            <div className="horizontal-scroll-item">
+              {renderScreen("split")}
+            </div>
+            
+            {/* Import Screen */}
+            <div className="horizontal-scroll-item">
+              {renderScreen("import")}
+            </div>
+            
+            {/* Reports Screen */}
+            <div className="horizontal-scroll-item">
+              {renderScreen("reports")}
+            </div>
+            
+            {/* Settings Screen */}
+            <div className="horizontal-scroll-item">
+              {renderScreen("settings")}
+            </div>
+          </div>
         </main>
 
         {/* Bottom Navigation */}
-        <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+        <Navigation activeTab={activeTab} onTabChange={handleTabChange} />
       </div>
     </div>
   );

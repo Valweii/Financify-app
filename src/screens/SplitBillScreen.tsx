@@ -323,7 +323,7 @@ export const SplitBillScreen = () => {
                             <div className="min-w-0">
                               <p className="font-medium truncate">{it.name}</p>
                             </div>
-                            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
                               <div className="w-24 text-right">
                                 <MoneyDisplay amount={it.price_cents} size="md" />
                               </div>
@@ -350,13 +350,13 @@ export const SplitBillScreen = () => {
                     </div>
                     <div className="mt-4 flex justify-end">
                       <Button className="btn-primary" onClick={() => setStep(1)}>Continue</Button>
-                    </div>
-                  </div>
+              </div>
+            </div>
                 ) : (
                   <label className="btn-primary inline-flex items-center justify-center rounded-md px-5 py-3 cursor-pointer disabled:opacity-70">
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && e.target.files[0] && handleImageUpload(e.target.files[0])} />
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && e.target.files[0] && handleImageUpload(e.target.files[0])} />
                     Upload
-                  </label>
+            </label>
                 )}
               </>
             )}
@@ -416,31 +416,31 @@ export const SplitBillScreen = () => {
               <Button variant="outline" size="sm" onClick={() => setIsEditMode(v => !v)}>
                 {isEditMode ? 'Done Editing' : 'Edit Mode'}
               </Button>
-              <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
-                <DialogTrigger asChild>
+            <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
+              <DialogTrigger asChild>
                   <Button variant="outline" size="sm"><Plus className="w-4 h-4 mr-1" /> Add Item</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add Item</DialogTitle>
-                  </DialogHeader>
-                  <div className="grid gap-3 py-2">
-                    <div>
-                      <label className="text-sm text-muted-foreground">Item Name</label>
-                      <Input value={draftItem.name} onChange={(e) => setDraftItem({ ...draftItem, name: e.target.value })} />
-                    </div>
-                    <div>
-                      <label className="text-sm text-muted-foreground">Price (IDR)</label>
-                      <Input type="number" min={0} value={draftItem.price_cents} onChange={(e) => setDraftItem({ ...draftItem, price_cents: Math.max(0, parseInt(e.target.value || '0', 10)) })} />
-                    </div>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Item</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-3 py-2">
+                  <div>
+                    <label className="text-sm text-muted-foreground">Item Name</label>
+                    <Input value={draftItem.name} onChange={(e) => setDraftItem({ ...draftItem, name: e.target.value })} />
                   </div>
-                  <DialogFooter>
-                    <Button onClick={addItem} className="btn-primary">Save</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
+                  <div>
+                    <label className="text-sm text-muted-foreground">Price (IDR)</label>
+                    <Input type="number" min={0} value={draftItem.price_cents} onChange={(e) => setDraftItem({ ...draftItem, price_cents: Math.max(0, parseInt(e.target.value || '0', 10)) })} />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button onClick={addItem} className="btn-primary">Save</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
+            </div>
           {/* Removed Set your participant: auto-assign current username via effect */}
           {/* Participant selector (avatars) */}
           <div className="mb-3">
@@ -481,8 +481,8 @@ export const SplitBillScreen = () => {
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-medium">{people.find(p => p.id === assignPersonId)?.name || 'Current participant'} current total</div>
                   <MoneyDisplay amount={personTotals[assignPersonId]?.total_cents || 0} size="md" />
-                </div>
               </div>
+            </div>
           )}
           {/* Quick actions */}
           <div className="flex-1 space-y-2 overflow-y-auto">
@@ -707,37 +707,37 @@ export const SplitBillScreen = () => {
       )}
       
       {/* Global Edit Item Price Dialog (available in all steps) */}
-      <Dialog open={isEditItemOpen} onOpenChange={setIsEditItemOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Item Price (IDR)</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-3 py-2">
-            <div>
-              <label className="text-sm text-muted-foreground">Amount</label>
-              <Input
-                type="number"
-                min={0}
-                value={editItemPrice}
-                onChange={(e) => setEditItemPrice(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                const v = Math.max(0, parseInt(editItemPrice || '0', 10));
-                if (!editItemId) { setIsEditItemOpen(false); return; }
-                setItems(prev => prev.map(it => it.id === editItemId ? { ...it, price_cents: v } : it));
-                setIsEditItemOpen(false);
-              }}
-              className="btn-primary"
-            >
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <Dialog open={isEditItemOpen} onOpenChange={setIsEditItemOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Item Price (IDR)</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-3 py-2">
+                <div>
+                  <label className="text-sm text-muted-foreground">Amount</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={editItemPrice}
+                    onChange={(e) => setEditItemPrice(e.target.value)}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  onClick={() => {
+                    const v = Math.max(0, parseInt(editItemPrice || '0', 10));
+                    if (!editItemId) { setIsEditItemOpen(false); return; }
+                    setItems(prev => prev.map(it => it.id === editItemId ? { ...it, price_cents: v } : it));
+                    setIsEditItemOpen(false);
+                  }}
+                  className="btn-primary"
+                >
+                  Save
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
     </div>
   );
 };

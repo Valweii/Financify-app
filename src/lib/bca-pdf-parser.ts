@@ -196,14 +196,14 @@ function parseTransactionFromBuffer(buffer: TransactionBuffer): ImportedTransact
       description = description
         .replace(/\s{2,}/g, ' ') // Normalize whitespace
         .replace(/^[\/\-\s]+|[\/\-\s]+$/g, '') // Remove leading/trailing separators
-        .trim();
-        
+      .trim();
+
       // Skip if description is too short or seems invalid
       if (description.length < 2) return null;
       
       return {
         date: toIsoDate(buffer.date),
-        description,
+      description,
         type,
         amount_cents: amount,
       };
@@ -363,7 +363,7 @@ async function extractTextWithPdfJs(file: File): Promise<string> {
       }
     }
     
-    return fullText;
+  return fullText;
   } catch (error) {
     console.error('PDF text extraction failed:', error);
     throw new Error('Failed to extract text from PDF');

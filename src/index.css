@@ -139,4 +139,39 @@ All colors MUST be HSL.
   .scrollbar-hide::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Opera */
   }
+
+  /* Horizontal scroll container for navigation */
+  .horizontal-scroll-container {
+    display: flex;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+    gap: 2rem; /* Add gap between pages */
+  }
+  
+  .horizontal-scroll-container::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+  
+  .horizontal-scroll-item {
+    flex: 0 0 100%; /* Each item takes full width */
+    width: 100%;
+    min-width: 100%;
+    display: block; /* Change back to block to match original layout */
+  }
+  
+  .horizontal-scroll-item > * {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* Hide scrollbar for balance chart */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;  /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Safari and Chrome */
 }
