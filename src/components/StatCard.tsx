@@ -3,6 +3,7 @@ import { MoneyDisplay } from "./MoneyDisplay";
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 import { useCounterAnimation } from "@/hooks/useCounterAnimation";
+import { usePressInteraction } from "@/hooks/usePressInteraction";
 
 interface StatCardProps {
   title: string;
@@ -12,6 +13,7 @@ interface StatCardProps {
   type?: "income" | "expense" | "neutral";
   className?: string;
   animate?: boolean;
+  interactive?: boolean;
 }
 
 export const StatCard = ({ 
@@ -21,12 +23,20 @@ export const StatCard = ({
   icon: Icon,
   type = "neutral",
   className,
-  animate = true
+  animate = true,
+  interactive = true
 }: StatCardProps) => {
   const { currentValue } = useCounterAnimation(amount, {
     duration: 1000,
     startDelay: 300,
     easeOut: true
+  });
+
+  const { handlePressStart, handlePressEnd, getPressStyles } = usePressInteraction({
+    scaleDown: 0.995,
+    scaleUp: 1.01,
+    duration: 200,
+    shadowIntensity: 0.15
   });
 
   const displayAmount = animate ? currentValue : amount;
@@ -42,11 +52,20 @@ export const StatCard = ({
   };
 
   return (
-    <Card className={cn(
-      "p-4 space-y-2",
-      getTypeStyles(),
-      className
-    )}>
+    <Card 
+      className={cn(
+        "p-4 space-y-2",
+        getTypeStyles(),
+        interactive && "cursor-pointer select-none press-interactive",
+        className
+      )}
+      style={interactive ? getPressStyles() : undefined}
+      onMouseDown={interactive ? handlePressStart : undefined}
+      onMouseUp={interactive ? handlePressEnd : undefined}
+      onMouseLeave={interactive ? handlePressEnd : undefined}
+      onTouchStart={interactive ? handlePressStart : undefined}
+      onTouchEnd={interactive ? handlePressEnd : undefined}
+    >
       {/* Header: Title (left), Icon (right) */}
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-muted-foreground">{title}</span>
