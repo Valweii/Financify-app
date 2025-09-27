@@ -1,7 +1,6 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import { preloadCriticalResources, deferNonCriticalResources } from "./utils/lazyLoad";
 
 (() => {
   try {
@@ -11,11 +10,5 @@ import { preloadCriticalResources, deferNonCriticalResources } from "./utils/laz
     document.documentElement.classList.toggle('dark', theme === 'dark');
   } catch {}
 })();
-
-// Preload critical resources immediately
-preloadCriticalResources();
-
-// Defer non-critical resources
-deferNonCriticalResources();
 
 createRoot(document.getElementById("root")!).render(<App />);

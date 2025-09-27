@@ -19,60 +19,24 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // Core React libraries - highest priority
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
-            return 'react-vendor';
-          }
-          
-          // Critical UI libraries
-          if (id.includes('node_modules/@radix-ui') || id.includes('node_modules/lucide-react')) {
-            return 'ui-vendor';
-          }
-          
-          // Utility libraries
-          if (id.includes('node_modules/clsx') || id.includes('node_modules/tailwind-merge') || 
-              id.includes('node_modules/class-variance-authority') || id.includes('node_modules/zod')) {
-            return 'utils-vendor';
-          }
-          
-          // Supabase - defer to reduce critical path
-          if (id.includes('node_modules/@supabase') || id.includes('node_modules/supabase')) {
-            return 'supabase-vendor';
-          }
-          
-          // Charts and visualization - defer
-          if (id.includes('node_modules/recharts')) {
-            return 'charts-vendor';
-          }
-          
-          // PDF processing - defer
-          if (id.includes('node_modules/pdfjs-dist') || id.includes('node_modules/tesseract.js')) {
-            return 'pdf-vendor';
-          }
-          
-          // State management - defer
-          if (id.includes('node_modules/zustand') || id.includes('node_modules/@tanstack/react-query')) {
-            return 'state-vendor';
-          }
-          
-          // Form handling - defer
-          if (id.includes('node_modules/react-hook-form') || id.includes('node_modules/@hookform/resolvers')) {
-            return 'form-vendor';
-          }
-          
-          // Date handling - defer
-          if (id.includes('node_modules/date-fns')) {
-            return 'date-vendor';
-          }
-          
-          // App screens (lazy loaded)
-          if (id.includes('/screens/')) {
-            return 'screens';
-          }
-          
-          // App components
-          if (id.includes('/components/') && !id.includes('/ui/')) {
-            return 'components';
+          // Only chunk node_modules to avoid circular dependencies
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'react';
+            }
+            if (id.includes('@radix-ui')) {
+              return 'radix';
+            }
+            if (id.includes('@supabase')) {
+              return 'supabase';
+            }
+            if (id.includes('recharts')) {
+              return 'charts';
+            }
+            if (id.includes('pdfjs-dist')) {
+              return 'pdf';
+            }
+            return 'vendor';
           }
         },
         chunkFileNames: (chunkInfo) => {
@@ -92,7 +56,7 @@ export default defineConfig(({ mode }) => ({
     cssMinify: true,
     minify: 'esbuild',
     sourcemap: false,
-    target: 'esnext',
+    target: 'es2020',
     modulePreload: {
       polyfill: false
     }
