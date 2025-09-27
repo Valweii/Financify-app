@@ -88,17 +88,17 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
     <div className="space-y-6 pb-20">
       {/* Hero Image */}
       <div className="relative rounded-2xl overflow-hidden">
-        <img 
+        {/* <img 
           src={heroImage} 
           alt="Financial Management Dashboard" 
           className="w-full h-32 object-cover object-[center_10%]"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-primary/60 flex items-center justify-center">
+        /> */}
+        {/* <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-primary/60 flex items-center justify-center">
           <div className="text-center text-white">
             <h2 className="text-responsive-lg font-bold">Smart Financial Management</h2>
             <p className="text-responsive-sm opacity-90">Track, analyze, and optimize your spending</p>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* Header */}
