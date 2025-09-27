@@ -1,6 +1,8 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import "./utils/loadNonCriticalCSS";
+import { initPerformanceOptimizations } from "./utils/performance";
 
 (() => {
   try {
@@ -12,3 +14,6 @@ import "./index.css";
 })();
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+// Initialize performance optimizations
+initPerformanceOptimizations();
