@@ -71,7 +71,6 @@ export const EncryptionStatus = () => {
       // Force reload transactions after a short delay to ensure state is updated
       setTimeout(async () => {
         try { 
-          console.log('🔄 Reloading transactions after backup code recovery...');
           await loadTransactions(); 
         } catch (error) {
           console.error('Failed to reload transactions after backup recovery:', error);

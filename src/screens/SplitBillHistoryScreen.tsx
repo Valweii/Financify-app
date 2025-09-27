@@ -19,13 +19,11 @@ export const SplitBillHistoryScreen = ({ onBack }: { onBack: () => void }) => {
   // Best-effort refresh
   // eslint-disable-next-line react-hooks/rules-of-hooks
   React.useEffect(() => { 
-    console.log('SplitBillHistoryScreen: Loading history...');
     loadSplitBillHistory(); 
   }, [loadSplitBillHistory]);
   
   // eslint-disable-next-line react-hooks/rules-of-hooks
   React.useEffect(() => {
-    console.log('SplitBillHistoryScreen: Current history state:', splitBillHistory);
   }, [splitBillHistory]);
 
   const getInitials = (name: string) => name.split(" ").map(s => s[0]).join("").slice(0,2).toUpperCase();

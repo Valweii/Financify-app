@@ -2,7 +2,6 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
-// Apply saved theme before first render to avoid flash and ensure correct initial mode
 (() => {
   try {
     const saved = localStorage.getItem('theme');

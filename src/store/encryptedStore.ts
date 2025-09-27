@@ -113,7 +113,6 @@ export const useEncryptedStore = (): EncryptedStore => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
-    console.log('🔍 Loading encrypted transactions for user:', user.id);
 
     const { data, error } = await supabase
       .from('transactions')
@@ -127,7 +126,6 @@ export const useEncryptedStore = (): EncryptedStore => {
       throw error;
     }
 
-    console.log('📊 Raw encrypted transactions from DB:', data?.length || 0, data);
 
     const decryptedTransactions: Transaction[] = [];
 

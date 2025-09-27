@@ -49,17 +49,8 @@ export const FinancifyApp = () => {
           setTimeout(() => {
             loadProfile();
             // Wait for encryption state to be initialized before loading transactions
-            console.log('🔄 FinancifyApp (auth change): Checking transaction load conditions:', {
-              isKeyLoading,
-              isEncryptionEnabled,
-              hasEncryptionKey: !!encryptionKey,
-              shouldLoad: !isKeyLoading && (!isEncryptionEnabled || encryptionKey)
-            });
             if (!isKeyLoading && (!isEncryptionEnabled || encryptionKey)) {
-              console.log('📥 FinancifyApp (auth change): Loading transactions...');
               loadTransactions();
-            } else {
-              console.log('⏸️ FinancifyApp (auth change): Skipping transaction load - waiting for encryption state');
             }
           }, 0);
         }
@@ -77,17 +68,8 @@ export const FinancifyApp = () => {
         setTimeout(() => {
           loadProfile();
           // Wait for encryption state to be initialized before loading transactions
-          console.log('🔄 FinancifyApp: Checking transaction load conditions:', {
-            isKeyLoading,
-            isEncryptionEnabled,
-            hasEncryptionKey: !!encryptionKey,
-            shouldLoad: !isKeyLoading && (!isEncryptionEnabled || encryptionKey)
-          });
           if (!isKeyLoading && (!isEncryptionEnabled || encryptionKey)) {
-            console.log('📥 FinancifyApp: Loading transactions...');
             loadTransactions();
-          } else {
-            console.log('⏸️ FinancifyApp: Skipping transaction load - waiting for encryption state');
           }
         }, 0);
       }
@@ -96,17 +78,9 @@ export const FinancifyApp = () => {
     return () => subscription.unsubscribe();
   }, [setUser, setSession, loadTransactions, loadProfile, isEncryptionEnabled, encryptionKey, isKeyLoading]);
 
-  // After unlock: when encryption is enabled and key is available, ensure we load encrypted transactions immediately.
   useEffect(() => {
-    console.log('🔄 FinancifyApp (encryption state change):', {
-      isAuthenticated,
-      isEncryptionEnabled,
-      hasEncryptionKey: !!encryptionKey
-    });
-    
     if (!isAuthenticated) return;
     if (isEncryptionEnabled && encryptionKey) {
-      console.log('📥 FinancifyApp (encryption state change): Loading transactions due to encryption state change...');
       setTimeout(() => {
         loadTransactions();
       }, 0);
@@ -141,10 +115,7 @@ export const FinancifyApp = () => {
   const handleTabChange = (newTab: NavigationTab) => {
     if (newTab === activeTab || isTransitioning) return;
     
-    // Reset split bill state when navigating away from split screen
     if (activeTab === "split" && newTab !== "split" && splitBillResetFn) {
-      console.log('🔄 FinancifyApp: Resetting split bill state due to navigation away');
-      console.log('📊 FinancifyApp: Current activeTab:', activeTab, 'newTab:', newTab, 'resetFn exists:', !!splitBillResetFn);
       splitBillResetFn();
     }
     
@@ -229,7 +200,6 @@ export const FinancifyApp = () => {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-md mx-auto bg-background min-h-screen">
-          {/* Header with app name */}
           <div className="sticky top-0 bg-background/80 backdrop-blur-sm border-b border-border z-40">
             <div className="px-4 py-4">
               <h1 className="text-xl font-bold text-primary">Financify</h1>
@@ -278,14 +248,12 @@ export const FinancifyApp = () => {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-md mx-auto bg-background min-h-screen">
-        {/* Header with app name */}
         <div className="sticky top-0 bg-background/80 backdrop-blur-sm border-b border-border z-40">
           <div className="px-4 py-4">
             <h1 className="text-xl font-bold text-primary">Financify</h1>
           </div>
         </div>
 
-        {/* Main Content */}
         <main className="px-4 py-4 relative overflow-hidden">
           <div 
             ref={contentRef}
@@ -295,49 +263,40 @@ export const FinancifyApp = () => {
               height: '100%'
             }}
           >
-            {/* Dashboard Screen */}
             <div className="horizontal-scroll-item">
               {renderScreen("dashboard")}
             </div>
             
-            {/* Split Bill Screen */}
             <div className="horizontal-scroll-item">
               {renderScreen("split")}
             </div>
             
-            {/* Reports Screen */}
             <div className="horizontal-scroll-item">
               {renderScreen("reports")}
             </div>
             
-            {/* Settings Screen */}
             <div className="horizontal-scroll-item">
               {renderScreen("settings")}
             </div>
           </div>
         </main>
 
-        {/* Floating Action Button - Single instance, fixed position */}
         <FloatingActionButton 
           onImportPDF={handleImportPDF}
           onInputTransaction={handleInputTransaction}
         />
 
-        {/* Bottom Navigation */}
         <Navigation activeTab={activeTab} onTabChange={handleTabChange} />
       </div>
 
-      {/* Transaction Input Dialog */}
       <TransactionInputDialog 
         isOpen={showTransactionDialog}
         onClose={() => setShowTransactionDialog(false)}
       />
 
-      {/* PDF Upload Modal */}
       {showPDFUpload && (
         <div className="fixed inset-0 bg-background z-50">
           <div className="max-w-md mx-auto bg-background min-h-screen">
-            {/* Header */}
             <div className="sticky top-0 bg-background/80 backdrop-blur-sm border-b border-border z-40">
               <div className="px-4 py-4 flex items-center justify-between">
                 <h1 className="text-xl font-bold text-primary">Import PDF</h1>
@@ -350,7 +309,6 @@ export const FinancifyApp = () => {
               </div>
             </div>
             
-            {/* PDF Upload Content */}
             <div className="px-4 py-4">
               <PDFUploadForm onClose={() => setShowPDFUpload(false)} />
             </div>
@@ -358,11 +316,9 @@ export const FinancifyApp = () => {
         </div>
       )}
 
-      {/* Import Screen Modal */}
       {showImportScreen && (
         <div className="fixed inset-0 bg-background z-50">
           <div className="max-w-md mx-auto bg-background min-h-screen">
-            {/* Header */}
             <div className="sticky top-0 bg-background/80 backdrop-blur-sm border-b border-border z-40">
               <div className="px-4 py-4 flex items-center justify-between">
                 <h1 className="text-xl font-bold text-primary">Import Transactions</h1>
@@ -375,7 +331,6 @@ export const FinancifyApp = () => {
               </div>
             </div>
             
-            {/* Import Screen Content */}
             <div className="px-4 py-4">
               <ImportScreen />
             </div>

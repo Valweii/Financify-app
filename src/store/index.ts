@@ -155,7 +155,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       // Also save to localStorage as backup
       if (user) {
         localStorage.setItem(`split_bill_history_${user.id}`, JSON.stringify(newHistory));
-        console.log('Saved split bill history to localStorage:', newHistory);
       }
       
       return { splitBillHistory: newHistory };
@@ -165,12 +164,10 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   loadSplitBillHistory: async () => {
     const { user } = get();
     if (!user) {
-      console.log('No user found when loading split bill history');
       return;
     }
     
     try {
-      console.log('Loading split bill history for user:', user.id);
       const { data, error } = await (supabase as any)
         .from('split_bill_history')
         .select('*')
@@ -180,17 +177,14 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       if (error) {
         console.error('Database error loading split bill history:', error);
         // Fallback: load from local storage if database table doesn't exist
-        console.log('Falling back to local storage for loading...');
         const localHistory = localStorage.getItem(`split_bill_history_${user.id}`);
         if (localHistory) {
           const history = JSON.parse(localHistory);
           set({ splitBillHistory: history });
-          console.log('Loaded split bill history from local storage:', history);
         }
         return;
       }
       
-      console.log('Loaded split bill history from database:', data);
       
       const history: SplitBillHistory[] = (data || []).map((h: any) => ({
         id: h.id,
@@ -209,12 +203,10 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
     } catch (error) {
       console.error('Error loading split bill history:', error);
       // Fallback: load from local storage if database fails
-      console.log('Falling back to local storage due to error...');
       const localHistory = localStorage.getItem(`split_bill_history_${user.id}`);
       if (localHistory) {
         const history = JSON.parse(localHistory);
         set({ splitBillHistory: history });
-        console.log('Loaded split bill history from local storage:', history);
       }
     }
   },
@@ -227,16 +219,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
     }
     
     try {
-      console.log('Attempting to save split bill to database:', {
-        user_id: user.id,
-        date: splitBill.date,
-        total_amount_cents: splitBill.total_amount_cents,
-        people: splitBill.people,
-        items: splitBill.items,
-        tax_choice: splitBill.tax_choice,
-        service_fee_cents: splitBill.service_fee_cents,
-        person_totals: splitBill.person_totals,
-      });
       
       const { data, error } = await (supabase as any)
         .from('split_bill_history')
@@ -256,7 +238,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       if (error) {
         console.error('Database error saving split bill:', error);
         // Fallback: save locally if database table doesn't exist
-        console.log('Falling back to local storage...');
         const newSplitBill: SplitBillHistory = {
           ...splitBill,
           id: splitBill.id,
@@ -267,7 +248,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
         return;
       }
       
-      console.log('Split bill saved to database:', data);
       
       const newSplitBill: SplitBillHistory = {
         ...splitBill,
@@ -280,7 +260,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
     } catch (error) {
       console.error('Error saving split bill history:', error);
       // Fallback: save locally if database fails
-      console.log('Falling back to local storage due to error...');
       const newSplitBill: SplitBillHistory = {
         ...splitBill,
         id: splitBill.id,
@@ -306,7 +285,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       });
       if (user) {
         localStorage.setItem(`split_bill_history_${user.id}`, JSON.stringify(updatedHistory));
-        console.log('Updated payment status in localStorage:', { splitBillId, personId, hasPaid });
       }
       return { splitBillHistory: updatedHistory };
     });
@@ -320,7 +298,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       // Also update localStorage
       if (user) {
         localStorage.setItem(`split_bill_history_${user.id}`, JSON.stringify(updatedHistory));
-        console.log('Removed split bill from localStorage:', splitBillId);
       }
       
       return { splitBillHistory: updatedHistory };
@@ -332,12 +309,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
     const { user, isEncryptionEnabled, encryptionKey } = get();
     if (!user) return;
     
-    console.log('🔄 loadTransactions called with:', {
-      hasUser: !!user,
-      isEncryptionEnabled,
-      hasEncryptionKey: !!encryptionKey,
-      userId: user?.id
-    });
     
     set({ isLoading: true });
     try {
@@ -350,7 +321,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
           const encryptedStore = useEncryptedStore();
           const encryptedTransactions = await encryptedStore.loadEncryptedTransactions(encryptionKey);
           allTransactions = [...encryptedTransactions];
-          console.log('✅ Loaded encrypted transactions:', encryptedTransactions.length);
         } catch (error) {
           console.error('Failed to load encrypted transactions:', error);
         }
@@ -358,7 +328,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
 
       // Also load unencrypted transactions (for backward compatibility and mixed states)
       try {
-        console.log('🔍 Loading unencrypted transactions for user:', user.id);
         
         const { data, error } = await (supabase.from('transactions') as any)
           .select('*')
@@ -371,7 +340,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
           throw error;
         }
 
-        console.log('📊 Raw unencrypted transactions from DB:', data?.length || 0, data);
         
         const unencryptedTransactions: Transaction[] = ((data as any[]) || []).map(t => ({
           id: t.id,
@@ -387,7 +355,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
         }));
         
         allTransactions = [...allTransactions, ...unencryptedTransactions];
-        console.log('✅ Loaded unencrypted transactions:', unencryptedTransactions.length);
       } catch (error) {
         console.error('Failed to load unencrypted transactions:', error);
       }
@@ -403,14 +370,12 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
           .order('date', { ascending: false });
         
         if (!allError) {
-          console.log('🔍 ALL transactions in database:', allDbTransactions?.length || 0, allDbTransactions);
         }
       } catch (error) {
         console.error('Failed to load all transactions for debugging:', error);
       }
       
       set({ transactions: allTransactions });
-      console.log('✅ Total transactions loaded:', allTransactions.length);
     } catch (error) {
       console.error('Error loading transactions:', error);
     } finally {

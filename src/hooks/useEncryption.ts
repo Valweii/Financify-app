@@ -148,34 +148,23 @@ export const useEncryption = (): UseEncryptionReturn => {
   // Check if encryption key is set up on mount and sync encryption state
   useEffect(() => {
     const checkKeySetup = async () => {
-      console.log('🚀 Starting encryption state check on mount...');
       
       const hasKey = hasEncryptionKey();
       const encryptionEnabled = isEncryptionEnabledLocal();
       
-      console.log('📊 Initial state:', { 
-        hasKey, 
-        encryptionEnabled,
-        localStorage_encryption_enabled: localStorage.getItem('financify_encryption_enabled'),
-        localStorage_encryption_key: !!localStorage.getItem('financify_encryption_key'),
-        localStorage_cached_key: !!localStorage.getItem('financify_cached_key')
-      });
       
       setIsKeySetup(hasKey);
       
       // If we have a key and encryption is enabled, try to restore the cached key immediately
       if (hasKey && encryptionEnabled) {
         try {
-          console.log('🔍 Attempting to restore cached key...');
           const cached = await loadCachedCryptoKey();
           if (cached) {
             setCurrentKey(cached);
             setEncryptionKey(cached);
             setEncryptionEnabled(true);
-            console.log('✅ Successfully restored encryption key from cache on mount');
           } else {
             // Key exists but cache is missing, encryption is disabled
-            console.log('⚠️ Key exists but cache is missing, disabling encryption');
             setEncryptionEnabled(false);
             setEncryptionEnabledLocal(false);
           }
@@ -185,11 +174,9 @@ export const useEncryption = (): UseEncryptionReturn => {
           setEncryptionEnabledLocal(false);
         }
       } else {
-        console.log('🔍 No key or encryption disabled:', { hasKey, encryptionEnabled });
         setEncryptionEnabled(false);
       }
       
-      console.log('🏁 Finished encryption state check, setting isKeyLoading to false');
       setIsKeyLoading(false);
     };
     checkKeySetup();
@@ -199,15 +186,12 @@ export const useEncryption = (): UseEncryptionReturn => {
   // Setup encryption with password
   const setupEncryption = useCallback(async (password: string): Promise<{ success: boolean; backupCodes?: string[]; error?: string }> => {
     try {
-      console.log('🔍 setupEncryption called');
       setIsKeyLoading(true);
       
       // Generate new encryption key
-      console.log('🔐 Generating new encryption key...');
       const encryptionKey = await generateEncryptionKey(password);
       
       // Store key data (salt + version)
-      console.log('🔐 Storing encryption key data...');
       storeEncryptionKey(encryptionKey);
       
       // Create and store a verifier encrypted with the derived key for future password validation
@@ -224,24 +208,19 @@ export const useEncryption = (): UseEncryptionReturn => {
       }
 
       // Generate and store backup codes
-      console.log('🔐 Generating backup codes...');
       const backupCodes = generateBackupCodes();
       storeBackupCodes(backupCodes);
       
       // Store the original encryption key encrypted with backup codes
-      console.log('🔐 Storing original key encrypted with backup codes...');
       await storeEncryptedOriginalKey(encryptionKey.key, backupCodes);
       
       // Store backup code hashes and encrypted original key in Supabase for cross-device recovery
-      console.log('🔐 Storing backup code hashes and encrypted original key in Supabase...');
       await storeBackupCodeHashes(backupCodes, encryptionKey.key);
       
       // Set current key for immediate use
-      console.log('🔐 Setting current key...');
       setCurrentKey(encryptionKey.key);
       setIsKeySetup(true);
       
-      console.log('✅ Encryption setup completed successfully');
       try { await cacheCryptoKey(encryptionKey.key); } catch {}
       try { 
         setEncryptionKey(encryptionKey.key); 
@@ -260,18 +239,14 @@ export const useEncryption = (): UseEncryptionReturn => {
   // Unlock encryption with password
   const unlockEncryption = useCallback(async (password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      console.log('🔍 unlockEncryption called');
       setIsKeyLoading(true);
       
       const keyData = loadEncryptionKeyData();
-      console.log('🔍 keyData loaded:', !!keyData);
       if (!keyData) {
-        console.log('❌ No encryption key found');
         return { success: false, error: 'No encryption key found' };
       }
       
       // Recreate key from password and salt
-      console.log('🔐 Recreating key from password and salt...');
       const key = await recreateEncryptionKey(password, new Uint8Array(keyData.salt));
       
       // Validate key against stored verifier
@@ -280,7 +255,6 @@ export const useEncryption = (): UseEncryptionReturn => {
       if (!storedVerifier) {
         // Backward-compat path: no verifier stored yet (older clients). Validate by round-trip
         // and create a verifier for future unlocks.
-        console.log('⚠️ Missing key verifier – performing compatibility validation');
         try {
           const probe = { t: 'probe', ts: Date.now() } as const;
           const enc = await encryptData(probe, key);
@@ -292,7 +266,6 @@ export const useEncryption = (): UseEncryptionReturn => {
             localStorage.setItem('financify_key_verifier', JSON.stringify(verifierEncrypted));
           }
         } catch (e) {
-          console.log('❌ Compatibility validation failed');
           isValid = false;
         }
       } else {
@@ -301,7 +274,6 @@ export const useEncryption = (): UseEncryptionReturn => {
           const decryptedVerifier = await decryptData(parsed, key);
           isValid = decryptedVerifier?.t === 'financify_key_verifier';
         } catch (e) {
-          console.log('❌ Verifier decryption failed');
           isValid = false;
         }
       }
@@ -310,7 +282,6 @@ export const useEncryption = (): UseEncryptionReturn => {
       }
       
       // Set current key only if validation passes
-      console.log('✅ Key validation successful');
       setCurrentKey(key);
       try { await cacheCryptoKey(key); } catch {}
       try { 
@@ -388,7 +359,6 @@ export const useEncryption = (): UseEncryptionReturn => {
       }
 
       // Try to restore the original encryption key using the backup code
-      console.log('🔐 Attempting to restore original key with backup code...');
       let restoredKey: CryptoKey | null = null;
       
       // First try local restoration
@@ -396,7 +366,6 @@ export const useEncryption = (): UseEncryptionReturn => {
       
       // If not found locally, try Supabase restoration (for cross-device recovery)
       if (!restoredKey) {
-        console.log('🔍 Key not found locally, checking Supabase...');
         restoredKey = await validateBackupCodeHash(normalized);
       }
       
@@ -405,7 +374,6 @@ export const useEncryption = (): UseEncryptionReturn => {
       }
       
       if (restoredKey) {
-        console.log('✅ Successfully restored original encryption key');
         
         // Use the restored original key directly
         setCurrentKey(restoredKey);
@@ -433,12 +401,10 @@ export const useEncryption = (): UseEncryptionReturn => {
         
         // Cache the restored key for future page reloads
         await cacheCryptoKey(restoredKey);
-        console.log('🔑 Cached restored encryption key for future reloads');
         
         return { success: true, backupCodes: newCodes };
       } else {
         // Fallback: create new key if original key restoration fails
-        console.log('⚠️ Could not restore original key, creating new key...');
         const newEncKey = await generateEncryptionKey(newPassword);
         storeEncryptionKey(newEncKey);
 
@@ -465,7 +431,6 @@ export const useEncryption = (): UseEncryptionReturn => {
         
         // Cache the new key for future page reloads
         await cacheCryptoKey(newEncKey.key);
-        console.log('🔑 Cached new encryption key for future reloads');
         
         return { success: true, backupCodes: newCodes };
       }

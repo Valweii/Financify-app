@@ -53,7 +53,6 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
   }, [currentKey, setEncryptionKey]);
 
   const handleSetup = async () => {
-    console.log('🔍 handleSetup called with password length:', password.length);
     
     if (password.length < 8) {
       toast({
@@ -73,12 +72,9 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
       return;
     }
 
-    console.log('🔐 Starting encryption setup...');
     const result = await setupEncryption(password);
-    console.log('🔐 setupEncryption result:', result);
     
     if (result.success && result.backupCodes) {
-      console.log('✅ Encryption setup successful');
       setBackupCodes(result.backupCodes);
       setShowBackupCodes(true);
       setEncryptionEnabled(true);
@@ -89,7 +85,6 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
         description: "Your data is now end-to-end encrypted!",
       });
     } else {
-      console.log('❌ Encryption setup failed:', result.error);
       toast({
         title: "Setup failed",
         description: result.error || "Failed to setup encryption",
@@ -99,11 +94,9 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
   };
 
   const handleUnlock = async () => {
-    console.log('🔍 handleUnlock called with password length:', password.length);
     
     // Check if encryption is actually set up
     if (!isKeySetup) {
-      console.log('❌ No encryption setup found');
       toast({
         title: "No encryption setup",
         description: "Please set up encryption first.",
@@ -115,10 +108,8 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
     setIsUnlocking(true);
     
     const result = await unlockEncryption(password);
-    console.log('🔐 unlockEncryption result:', result);
     
     if (result.success) {
-      console.log('✅ Unlock successful');
       setEncryptionEnabled(true);
       toast({
         title: "Encryption unlocked",
@@ -127,7 +118,6 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
       // Force reload transactions after a short delay to ensure state is updated
       setTimeout(async () => {
         try { 
-          console.log('🔄 Reloading transactions after encryption unlock...');
           await loadTransactions(); 
         } catch (error) {
           console.error('Failed to reload transactions after unlock:', error);
@@ -135,7 +125,6 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
       }, 100);
       onComplete?.();
     } else {
-      console.log('❌ Unlock failed:', result.error);
       toast({
         title: "Unlock failed",
         description: result.error || "Invalid password",

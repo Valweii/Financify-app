@@ -139,7 +139,6 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
           setPeople(prev => [...prev, newPerson]);
           setMyPersonId(newPerson.id);
           setMyName(defaultName);
-          console.log('🔄 SplitBillScreen: Auto-added current user on step 1 entry:', defaultName);
         }
       }
     }
@@ -147,7 +146,6 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
 
   // Reset function to reset all state to initial values
   const resetSplitBillState = useCallback(() => {
-    console.log('🔄 SplitBillScreen: Resetting all state to initial values');
     setImagePreview(null);
     setIsOcrLoading(false);
     setPeople([]);
@@ -167,14 +165,11 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
     setIsEditMode(false);
     setNewPersonName("");
     setDraftItem({ name: "", price_cents: 0, participants: [] });
-    console.log('✅ SplitBillScreen: State reset complete');
   }, []);
 
   // Expose reset function to parent component
   useEffect(() => {
     if (onReset) {
-      console.log('📤 SplitBillScreen: Exposing reset function to parent');
-      console.log('📊 SplitBillScreen: onReset function exists:', !!onReset);
       onReset(resetSplitBillState);
     }
   }, [onReset, resetSplitBillState]);
@@ -185,7 +180,6 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
       // Check if we have any data that indicates we were in the middle of a flow
       const hasData = imagePreview || people.length > 0 || items.length > 0;
       if (hasData) {
-        console.log('🔄 SplitBillScreen: Resetting state when screen becomes inactive');
         // Use setTimeout to avoid state update during render
         setTimeout(() => {
           resetSplitBillState();
@@ -201,7 +195,6 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
       // Check if we have any data that indicates we were in the middle of a flow
       const hasData = imagePreview || people.length > 0 || items.length > 0;
       if (hasData) {
-        console.log('🔄 SplitBillScreen: Resetting state when returning to main page');
         // Use setTimeout to avoid state update during render
         setTimeout(() => {
           resetSplitBillState();
@@ -855,7 +848,6 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
                         setPeople(prev => [...prev, newPerson]);
                         setMyPersonId(newPerson.id);
                         setMyName(defaultName);
-                        console.log('🔄 SplitBillScreen: Auto-added current user:', defaultName);
                       }
                     }
                   }
@@ -895,9 +887,7 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
                       created_at: new Date().toISOString(),
                     };
                     
-                    console.log('Saving split bill data:', splitBillData);
                     await saveSplitBillHistory(splitBillData);
-                    console.log('Split bill saved successfully');
                     
                     // Also create transaction for the current user if they have a share
                     if (myPersonId) {
