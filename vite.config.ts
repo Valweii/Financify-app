@@ -18,12 +18,62 @@ export default defineConfig(({ mode }) => ({
     cssCodeSplit: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-select', '@radix-ui/react-tabs'],
-          utils: ['clsx', 'tailwind-merge', 'class-variance-authority'],
-          charts: ['recharts'],
-          supabase: ['@supabase/supabase-js']
+        manualChunks: (id) => {
+          // Core React libraries
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'react-vendor';
+          }
+          
+          // UI libraries
+          if (id.includes('node_modules/@radix-ui') || id.includes('node_modules/lucide-react')) {
+            return 'ui-vendor';
+          }
+          
+          // Utility libraries
+          if (id.includes('node_modules/clsx') || id.includes('node_modules/tailwind-merge') || 
+              id.includes('node_modules/class-variance-authority') || id.includes('node_modules/zod')) {
+            return 'utils-vendor';
+          }
+          
+          // Charts and visualization
+          if (id.includes('node_modules/recharts')) {
+            return 'charts-vendor';
+          }
+          
+          // Supabase
+          if (id.includes('node_modules/@supabase') || id.includes('node_modules/supabase')) {
+            return 'supabase-vendor';
+          }
+          
+          // PDF processing
+          if (id.includes('node_modules/pdfjs-dist') || id.includes('node_modules/tesseract.js')) {
+            return 'pdf-vendor';
+          }
+          
+          // State management
+          if (id.includes('node_modules/zustand') || id.includes('node_modules/@tanstack/react-query')) {
+            return 'state-vendor';
+          }
+          
+          // Form handling
+          if (id.includes('node_modules/react-hook-form') || id.includes('node_modules/@hookform/resolvers')) {
+            return 'form-vendor';
+          }
+          
+          // Date handling
+          if (id.includes('node_modules/date-fns')) {
+            return 'date-vendor';
+          }
+          
+          // App screens (lazy loaded)
+          if (id.includes('/screens/')) {
+            return 'screens';
+          }
+          
+          // App components
+          if (id.includes('/components/') && !id.includes('/ui/')) {
+            return 'components';
+          }
         },
         chunkFileNames: (chunkInfo) => {
           const facadeModuleId = chunkInfo.facadeModuleId ? chunkInfo.facadeModuleId.split('/').pop().replace('.tsx', '').replace('.ts', '') : 'chunk';
@@ -42,6 +92,10 @@ export default defineConfig(({ mode }) => ({
     cssMinify: true,
     minify: 'esbuild',
     sourcemap: false,
+    target: 'esnext',
+    modulePreload: {
+      polyfill: false
+    }
   },
   css: {
     devSourcemap: true,
