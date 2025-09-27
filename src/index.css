@@ -295,19 +295,83 @@ All colors MUST be HSL.
     display: none; /* Chrome, Safari, Opera */
   }
   
+  .horizontal-scroll-container {
+    overflow-x: hidden !important; /* Disable horizontal scrolling */
+    touch-action: pan-y; /* Allow vertical panning but disable horizontal */
+  }
+  
   .horizontal-scroll-item {
     flex: 0 0 100%; /* Each item takes full width */
     width: 100%;
     min-width: 100%;
     display: block; /* Change back to block to match original layout */
     overflow-y: auto; /* Allow vertical scrolling within each page */
+    overflow-x: hidden; /* Disable horizontal scrolling */
     max-height: calc(100vh - 140px); /* Account for header and navigation */
     position: relative; /* Enable absolute positioning for FAB */
+    touch-action: pan-y; /* Allow vertical panning but disable horizontal */
   }
   
   .horizontal-scroll-item > * {
     width: 100%;
     max-width: 100%;
+  }
+
+  /* Responsive Typography */
+  .text-responsive-xs {
+    font-size: 0.75rem; /* 12px */
+    line-height: 1rem;
+  }
+
+  .text-responsive-sm {
+    font-size: 0.875rem; /* 14px */
+    line-height: 1.25rem;
+  }
+
+  .text-responsive-base {
+    font-size: 1rem; /* 16px */
+    line-height: 1.5rem;
+  }
+
+  .text-responsive-lg {
+    font-size: 1.125rem; /* 18px */
+    line-height: 1.75rem;
+  }
+
+  .text-responsive-xl {
+    font-size: 1.25rem; /* 20px */
+    line-height: 1.75rem;
+  }
+
+  .text-responsive-2xl {
+    font-size: 1.5rem; /* 24px */
+    line-height: 2rem;
+  }
+
+  .text-responsive-3xl {
+    font-size: 1.875rem; /* 30px */
+    line-height: 2.25rem;
+  }
+
+  /* Mobile-first responsive breakpoints */
+  @media (max-width: 640px) {
+    .text-responsive-xs { font-size: 0.625rem; line-height: 0.875rem; }
+    .text-responsive-sm { font-size: 0.75rem; line-height: 1rem; }
+    .text-responsive-base { font-size: 0.875rem; line-height: 1.25rem; }
+    .text-responsive-lg { font-size: 1rem; line-height: 1.5rem; }
+    .text-responsive-xl { font-size: 1.125rem; line-height: 1.5rem; }
+    .text-responsive-2xl { font-size: 1.25rem; line-height: 1.75rem; }
+    .text-responsive-3xl { font-size: 1.5rem; line-height: 2rem; }
+  }
+
+  @media (max-width: 480px) {
+    .text-responsive-xs { font-size: 0.5rem; line-height: 0.75rem; }
+    .text-responsive-sm { font-size: 0.625rem; line-height: 0.875rem; }
+    .text-responsive-base { font-size: 0.75rem; line-height: 1rem; }
+    .text-responsive-lg { font-size: 0.875rem; line-height: 1.25rem; }
+    .text-responsive-xl { font-size: 1rem; line-height: 1.25rem; }
+    .text-responsive-2xl { font-size: 1.125rem; line-height: 1.5rem; }
+    .text-responsive-3xl { font-size: 1.25rem; line-height: 1.75rem; }
   }
 
   /* Split Bill Swipe Animations */

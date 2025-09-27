@@ -399,7 +399,7 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
   return (
           <div className="flex flex-col space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold">Split Bill</h1>
+        <h1 className="text-responsive-2xl font-bold">Split Bill</h1>
         {step >= 0 && <p className="text-muted-foreground">Step {step + 1} of 4</p>}
       </div>
 
@@ -417,7 +417,7 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
                     <Receipt className="w-8 h-8 text-primary" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold">Split a Bill Now</h3>
+                    <h3 className="text-responsive-lg font-semibold">Split a Bill Now</h3>
                     <p className="text-muted-foreground">Start a new bill splitting session</p>
                   </div>
                 </div>
@@ -429,7 +429,7 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
                     <History className="w-8 h-8 text-primary" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold">View Active Split Bill</h3>
+                    <h3 className="text-responsive-lg font-semibold">View Active Split Bill</h3>
                     <p className="text-muted-foreground">See your active split bills and payment status</p>
                   </div>
                 </div>
@@ -451,8 +451,8 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
                       <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-r-primary/40 rounded-full animate-pulse"></div>
                     </div>
                     <div className="text-center space-y-2">
-                      <p className="text-lg font-semibold text-primary">Processing Receipt</p>
-                      <p className="text-sm text-muted-foreground">Detecting items automatically...</p>
+                      <p className="text-responsive-lg font-semibold text-primary">Processing Receipt</p>
+                      <p className="text-responsive-sm text-muted-foreground">Detecting items automatically...</p>
                       <div className="flex items-center justify-center space-x-1 mt-3">
                         <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
                         <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
@@ -467,7 +467,7 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
                 {imagePreview ? (
                   <div className="flex-1 w-full">
                     {/* After upload, show editable item summary before continue */}
-                    <h3 className="text-lg font-semibold mb-3">Detected Items</h3>
+                    <h3 className="text-responsive-lg font-semibold mb-3">Detected Items</h3>
                     <div className="space-y-2 max-h-[48vh] overflow-y-auto">
                       {items.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No items detected yet. You can add them manually in the next step.</p>

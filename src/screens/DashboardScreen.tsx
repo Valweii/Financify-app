@@ -95,15 +95,15 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
         />
         <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-primary/60 flex items-center justify-center">
           <div className="text-center text-white">
-            <h2 className="text-lg font-bold">Smart Financial Management</h2>
-            <p className="text-sm opacity-90">Track, analyze, and optimize your spending</p>
+            <h2 className="text-responsive-lg font-bold">Smart Financial Management</h2>
+            <p className="text-responsive-sm opacity-90">Track, analyze, and optimize your spending</p>
           </div>
         </div>
       </div>
 
       {/* Header */}
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-foreground">
+        <h1 className="text-responsive-2xl font-bold text-foreground">
           Hello, {profile?.full_name || user?.email?.split('@')[0] || 'User'}! 👋
         </h1>
         <p className="text-muted-foreground">Welcome to your financial dashboard</p>
@@ -114,7 +114,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Wallet className="w-5 h-5 text-primary" />
-            <span className="text-sm font-medium text-muted-foreground">Total Balance</span>
+            <span className="text-responsive-sm font-medium text-muted-foreground">Total Balance</span>
           </div>
           <MoneyDisplay 
             amount={totalBalance} 
@@ -130,7 +130,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
 
       {/* Monthly Stats */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">This Month</h2>
+        <h2 className="text-responsive-lg font-semibold mb-3">This Month</h2>
         <div className="grid grid-cols-3 gap-3">
           <StatCard
             title="Income"
@@ -194,7 +194,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
             <div className="aspect-[16/9] flex items-center justify-center">
               <div className="text-center space-y-2">
                 <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p className="text-sm text-muted-foreground">Loading chart data...</p>
+                <p className="text-responsive-sm text-muted-foreground">Loading chart data...</p>
               </div>
             </div>
           ) : (
@@ -241,7 +241,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
       {/* Recent Activity */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Recent Activity</h2>
+          <h2 className="text-responsive-lg font-semibold">Recent Activity</h2>
           <Button 
             variant="ghost" 
             size="sm"
@@ -258,7 +258,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{transaction.description}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-responsive-sm text-muted-foreground">
                       {new Date(transaction.date).toLocaleDateString('id-ID')} • {transaction.category}
                     </p>
                   </div>
@@ -277,7 +277,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
             <div className="space-y-2">
               <Upload className="w-8 h-8 text-muted-foreground mx-auto" />
               <p className="text-muted-foreground">No transactions yet</p>
-              <p className="text-sm text-muted-foreground">Import your first bank statement to get started</p>
+              <p className="text-responsive-sm text-muted-foreground">Import your first bank statement to get started</p>
             </div>
           </Card>
         )}
