@@ -33,7 +33,6 @@ export const loadNonCriticalCSS = () => {
         // Add other non-critical CSS files here as needed
       ]);
       
-      console.log('Non-critical CSS loaded successfully');
     } catch (error) {
       console.warn('Failed to load some non-critical CSS:', error);
     }

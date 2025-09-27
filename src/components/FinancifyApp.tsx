@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Navigation, NavigationTab } from "./Navigation";
 import { DashboardScreen } from "@/screens/DashboardScreen";
-import { ImportScreen } from "@/screens/ImportScreen";
 import { SplitBillScreen } from "@/screens/SplitBillScreen";
 import { ReportsScreen } from "@/screens/ReportsScreen";
 import { SettingsScreen } from "@/screens/SettingsScreen";
@@ -19,8 +18,6 @@ export const FinancifyApp = () => {
   const [activeTab, setActiveTab] = useState<NavigationTab>("dashboard");
   const [isInitialized, setIsInitialized] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [previousTab, setPreviousTab] = useState<NavigationTab>("dashboard");
-  const [showImportScreen, setShowImportScreen] = useState(false);
   const [showTransactionDialog, setShowTransactionDialog] = useState(false);
   const [showPDFUpload, setShowPDFUpload] = useState(false);
   const [splitBillResetFn, setSplitBillResetFn] = useState<(() => void) | null>(null);
@@ -119,7 +116,6 @@ export const FinancifyApp = () => {
       splitBillResetFn();
     }
     
-    setPreviousTab(activeTab);
     setIsTransitioning(true);
     
     // Calculate scroll position based on tab order
@@ -316,27 +312,6 @@ export const FinancifyApp = () => {
         </div>
       )}
 
-      {showImportScreen && (
-        <div className="fixed inset-0 bg-background z-50">
-          <div className="max-w-md mx-auto bg-background min-h-screen">
-            <div className="sticky top-0 bg-background/80 backdrop-blur-sm border-b border-border z-40">
-              <div className="px-4 py-4 flex items-center justify-between">
-                <h1 className="text-xl font-bold text-primary">Import Transactions</h1>
-                <button 
-                  onClick={() => setShowImportScreen(false)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-            
-            <div className="px-4 py-4">
-              <ImportScreen />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

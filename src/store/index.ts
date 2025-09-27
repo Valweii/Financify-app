@@ -67,7 +67,6 @@ interface FinancifyStore {
   addTransactions: (transactions: Transaction[]) => void;
   setImportedDraft: (transactions: ImportedTransaction[]) => void;
   clearImportedDraft: () => void;
-  setLoading: (loading: boolean) => void;
   
   // Encryption actions
   setEncryptionKey: (key: CryptoKey | null) => void;
@@ -132,7 +131,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   
   clearImportedDraft: () => set({ importedDraft: [] }),
   
-  setLoading: (isLoading) => set({ isLoading }),
   
   // Encryption actions
   setEncryptionKey: (encryptionKey) => set({ encryptionKey }),

@@ -38,7 +38,7 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
 
     setIsSubmitting(true);
     try {
-      const amountCents = Math.round(parseFloat(formData.amount) * 100);
+      const amountCents = Math.round(parseFloat(formData.amount));
       const finalAmount = formData.type === 'credit' ? amountCents : -amountCents;
       
       await createTransaction({
@@ -46,8 +46,7 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
         amount_cents: finalAmount,
         type: formData.type,
         category: formData.category,
-        date: formData.date,
-        source: 'Manual Entry'
+        date: formData.date
       });
 
       toast({
@@ -175,7 +174,7 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
               <div className="flex items-center justify-between">
                 <span className="font-medium">{formData.description || 'Transaction'}</span>
                 <MoneyDisplay 
-                  amount={formData.type === 'credit' ? parseFloat(formData.amount) * 100 : -parseFloat(formData.amount) * 100}
+                  amount={formData.type === 'credit' ? parseFloat(formData.amount) : -parseFloat(formData.amount)}
                   showSign
                   size="sm"
                 />
