@@ -304,15 +304,13 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                         animate={false}
                       />
                     </div>
-                    <div className={`overflow-hidden transition-all duration-300 ${expandedTransaction === transaction.id ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                      {expandedTransaction === transaction.id && (
-                        <div className="space-y-2 pt-2 border-t border-border/50 mt-2">
-                          <div className="text-sm text-muted-foreground">Description: {transaction.description}</div>
-                          <div className="text-sm text-muted-foreground">Date: {new Date(transaction.date).toLocaleDateString(transactionDateFormat)}</div>
-                          <div className="text-sm text-muted-foreground">Category: {transaction.category}</div>
-                          <div className="text-sm text-muted-foreground">Source: {transaction.source}</div>
-                        </div>
-                      )}
+                    <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedTransaction === transaction.id ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
+                      <div className="space-y-2 pt-2 border-t border-border/50 mt-2">
+                        <div className="text-sm text-muted-foreground">Description: {transaction.description}</div>
+                        <div className="text-sm text-muted-foreground">Date: {new Date(transaction.date).toLocaleDateString(transactionDateFormat)}</div>
+                        <div className="text-sm text-muted-foreground">Category: {transaction.category}</div>
+                        <div className="text-sm text-muted-foreground">Source: {transaction.source}</div>
+                      </div>
                     </div>
                   </Card>
                 ))}
@@ -444,7 +442,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                         </div>
                       )}
 
-                      {expandedCategory === stat.category && (
+                      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedCategory === stat.category ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
                         <div className="space-y-2 pt-2 border-t border-border/50">
                           {[...monthlyTransactions
                             .filter(t => t.category === stat.category)
@@ -473,7 +471,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                             </div>
                           ))}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </Card>
                 ))}
@@ -528,14 +526,12 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                     </Button>
                   </div>
                 </div>
-                <div className={`overflow-hidden transition-all duration-300 ${expandedTransaction === t.id ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                  {expandedTransaction === t.id && (
-                    <div className="space-y-2 pt-2 border-t border-border/50 mt-2">
-                      <div className="text-sm text-muted-foreground">Description: {t.description}</div>
-                      <div className="text-sm text-muted-foreground">Category: {t.category}</div>
-                      <div className="text-sm text-muted-foreground">Source: {t.source}</div>
-                    </div>
-                  )}
+                <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedTransaction === t.id ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
+                  <div className="space-y-2 pt-2 border-t border-border/50 mt-2">
+                    <div className="text-sm text-muted-foreground">Description: {t.description}</div>
+                    <div className="text-sm text-muted-foreground">Category: {t.category}</div>
+                    <div className="text-sm text-muted-foreground">Source: {t.source}</div>
+                  </div>
                 </div>
               </Card>
             ))}
