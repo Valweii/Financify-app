@@ -4,7 +4,11 @@ import type { ImportedTransaction } from "@/store";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 
 // Vite worker setup
-GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${import.meta.env.VITE_PDFJS_VERSION || '4.10.38'}/pdf.worker.min.js`;
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - Vite will resolve the URL at build time
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
+GlobalWorkerOptions.workerSrc = pdfWorkerUrl as unknown as string;
 
 interface TransactionBuffer {
   date: string;
