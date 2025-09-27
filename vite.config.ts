@@ -19,12 +19,12 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // Core React libraries
+          // Core React libraries - highest priority
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
             return 'react-vendor';
           }
           
-          // UI libraries
+          // Critical UI libraries
           if (id.includes('node_modules/@radix-ui') || id.includes('node_modules/lucide-react')) {
             return 'ui-vendor';
           }
@@ -35,32 +35,32 @@ export default defineConfig(({ mode }) => ({
             return 'utils-vendor';
           }
           
-          // Charts and visualization
-          if (id.includes('node_modules/recharts')) {
-            return 'charts-vendor';
-          }
-          
-          // Supabase
+          // Supabase - defer to reduce critical path
           if (id.includes('node_modules/@supabase') || id.includes('node_modules/supabase')) {
             return 'supabase-vendor';
           }
           
-          // PDF processing
+          // Charts and visualization - defer
+          if (id.includes('node_modules/recharts')) {
+            return 'charts-vendor';
+          }
+          
+          // PDF processing - defer
           if (id.includes('node_modules/pdfjs-dist') || id.includes('node_modules/tesseract.js')) {
             return 'pdf-vendor';
           }
           
-          // State management
+          // State management - defer
           if (id.includes('node_modules/zustand') || id.includes('node_modules/@tanstack/react-query')) {
             return 'state-vendor';
           }
           
-          // Form handling
+          // Form handling - defer
           if (id.includes('node_modules/react-hook-form') || id.includes('node_modules/@hookform/resolvers')) {
             return 'form-vendor';
           }
           
-          // Date handling
+          // Date handling - defer
           if (id.includes('node_modules/date-fns')) {
             return 'date-vendor';
           }

@@ -1,22 +1,18 @@
-import { useState, useEffect, useRef, Suspense, lazy } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigation, NavigationTab } from "./Navigation";
+import { DashboardScreen } from "@/screens/DashboardScreen";
+import { SplitBillScreen } from "@/screens/SplitBillScreen";
+import { ReportsScreen } from "@/screens/ReportsScreen";
+import { SettingsScreen } from "@/screens/SettingsScreen";
 import { AuthScreen } from "./AuthScreen";
 import { FloatingActionButton } from "./FloatingActionButton";
+import { TransactionInputDialog } from "./TransactionInputDialog";
+import { PDFUploadForm } from "./PDFUploadForm";
 import { useFinancifyStore } from "@/store";
 import { supabase } from "@/integrations/supabase/client";
 import { useEncryption } from "@/hooks/useEncryption";
-
-// Lazy load heavy components that are not immediately needed
-const TransactionInputDialog = lazy(() => import("./TransactionInputDialog").then(m => ({ default: m.TransactionInputDialog })));
-const PDFUploadForm = lazy(() => import("./PDFUploadForm").then(m => ({ default: m.PDFUploadForm })));
-const EncryptionSetup = lazy(() => import("./EncryptionSetup").then(m => ({ default: m.EncryptionSetup })));
-const FirstTimeEncryption = lazy(() => import("./FirstTimeEncryption").then(m => ({ default: m.FirstTimeEncryption })));
-
-// Lazy load screen components to reduce initial bundle size
-const DashboardScreen = lazy(() => import("@/screens/DashboardScreen").then(m => ({ default: m.DashboardScreen })));
-const SplitBillScreen = lazy(() => import("@/screens/SplitBillScreen").then(m => ({ default: m.SplitBillScreen })));
-const ReportsScreen = lazy(() => import("@/screens/ReportsScreen").then(m => ({ default: m.ReportsScreen })));
-const SettingsScreen = lazy(() => import("@/screens/SettingsScreen").then(m => ({ default: m.SettingsScreen })));
+import { EncryptionSetup } from "@/components/EncryptionSetup";
+import { FirstTimeEncryption } from "@/components/FirstTimeEncryption";
 
 export const FinancifyApp = () => {
   const [activeTab, setActiveTab] = useState<NavigationTab>("dashboard");
@@ -214,9 +210,7 @@ export const FinancifyApp = () => {
                 <p className="text-muted-foreground">Set up end-to-end encryption to protect your financial data</p>
               </div>
               {/* If encryption not set up yet, generate and display password once */}
-              <Suspense fallback={<div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin mx-auto"></div>}>
-                {!isKeySetup ? <FirstTimeEncryption /> : <EncryptionSetup />}
-              </Suspense>
+              {!isKeySetup ? <FirstTimeEncryption /> : <EncryptionSetup />}
             </div>
           </main>
         </div>
@@ -225,43 +219,17 @@ export const FinancifyApp = () => {
   }
 
   const renderScreen = (tab: NavigationTab) => {
-    const LoadingFallback = () => (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin"></div>
-      </div>
-    );
-
     switch (tab) {
       case "dashboard":
-        return (
-          <Suspense fallback={<LoadingFallback />}>
-            <DashboardScreen onNavigate={handleTabChange} />
-          </Suspense>
-        );
+        return <DashboardScreen onNavigate={handleTabChange} />;
       case "split":
-        return (
-          <Suspense fallback={<LoadingFallback />}>
-            <SplitBillScreen onReset={setSplitBillResetFn} isActive={activeTab === "split"} />
-          </Suspense>
-        );
+        return <SplitBillScreen onReset={setSplitBillResetFn} isActive={activeTab === "split"} />;
       case "reports":
-        return (
-          <Suspense fallback={<LoadingFallback />}>
-            <ReportsScreen isActive={activeTab === "reports"} />
-          </Suspense>
-        );
+        return <ReportsScreen isActive={activeTab === "reports"} />;
       case "settings":
-        return (
-          <Suspense fallback={<LoadingFallback />}>
-            <SettingsScreen />
-          </Suspense>
-        );
+        return <SettingsScreen />;
       default:
-        return (
-          <Suspense fallback={<LoadingFallback />}>
-            <DashboardScreen onNavigate={handleTabChange} />
-          </Suspense>
-        );
+        return <DashboardScreen onNavigate={handleTabChange} />;
     }
   };
 
@@ -317,12 +285,10 @@ export const FinancifyApp = () => {
         <Navigation activeTab={activeTab} onTabChange={handleTabChange} />
       </div>
 
-      <Suspense fallback={<div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin mx-auto"></div>}>
-        <TransactionInputDialog 
-          isOpen={showTransactionDialog}
-          onClose={() => setShowTransactionDialog(false)}
-        />
-      </Suspense>
+      <TransactionInputDialog 
+        isOpen={showTransactionDialog}
+        onClose={() => setShowTransactionDialog(false)}
+      />
 
       {showPDFUpload && (
         <div className="fixed inset-0 bg-background z-50">
@@ -340,9 +306,7 @@ export const FinancifyApp = () => {
             </div>
             
             <div className="px-4 py-4">
-              <Suspense fallback={<div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin mx-auto"></div>}>
-                <PDFUploadForm onClose={() => setShowPDFUpload(false)} />
-              </Suspense>
+              <PDFUploadForm onClose={() => setShowPDFUpload(false)} />
             </div>
           </div>
         </div>

@@ -1,25 +1,8 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { preloadCriticalResources, deferNonCriticalResources } from "./utils/lazyLoad";
 
-// Preload critical resources
-const preloadCriticalResources = () => {
-  // Preload critical fonts
-  const fontLink = document.createElement('link');
-  fontLink.rel = 'preload';
-  fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
-  fontLink.as = 'style';
-  document.head.appendChild(fontLink);
-  
-  // Preload critical images
-  const imageLink = document.createElement('link');
-  imageLink.rel = 'preload';
-  imageLink.href = '/src/assets/financify-hero.jpg';
-  imageLink.as = 'image';
-  document.head.appendChild(imageLink);
-};
-
-// Initialize theme
 (() => {
   try {
     const saved = localStorage.getItem('theme');
@@ -29,8 +12,10 @@ const preloadCriticalResources = () => {
   } catch {}
 })();
 
-// Preload critical resources
+// Preload critical resources immediately
 preloadCriticalResources();
 
-// Render app
+// Defer non-critical resources
+deferNonCriticalResources();
+
 createRoot(document.getElementById("root")!).render(<App />);
