@@ -159,12 +159,31 @@ export const FinancifyApp = () => {
     const gap = 32; // 2rem in pixels
     const scrollPosition = ((contentRef.current?.offsetWidth || 0) + gap) * tabIndex;
     
-    // Scroll to the new position
+    // Fast custom scroll animation
     if (contentRef.current) {
-      contentRef.current.scrollTo({
-        left: scrollPosition,
-        behavior: 'smooth'
-      });
+      const startTime = performance.now();
+      const startScrollLeft = contentRef.current.scrollLeft;
+      const distance = scrollPosition - startScrollLeft;
+      const duration = 200; // Faster animation (200ms instead of default ~300ms)
+      
+      const animateScroll = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Use ease-out cubic-bezier for snappy feel
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        const currentScrollLeft = startScrollLeft + (distance * easeOut);
+        
+        if (contentRef.current) {
+          contentRef.current.scrollLeft = currentScrollLeft;
+        }
+        
+        if (progress < 1) {
+          requestAnimationFrame(animateScroll);
+        }
+      };
+      
+      requestAnimationFrame(animateScroll);
     }
     
     // Update active tab immediately
@@ -179,12 +198,12 @@ export const FinancifyApp = () => {
           behavior: 'smooth'
         });
       }
-    }, 100);
+    }, 50);
     
     // End transition
     setTimeout(() => {
       setIsTransitioning(false);
-    }, 350);
+    }, 200);
   };
 
   if (!isInitialized) {

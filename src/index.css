@@ -167,7 +167,7 @@ All colors MUST be HSL.
   .horizontal-scroll-container {
     display: flex;
     overflow-x: auto;
-    scroll-behavior: smooth;
+    scroll-behavior: auto; /* Disable default smooth scroll for faster custom animation */
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE and Edge */
     gap: 2rem; /* Add gap between pages */
