@@ -16,19 +16,16 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    // Optimize CSS handling
     cssCodeSplit: true,
     rollupOptions: {
       output: {
-        // Split vendor and app code
         manualChunks: {
           vendor: ['react', 'react-dom'],
           ui: ['@radix-ui/react-dialog', '@radix-ui/react-select', '@radix-ui/react-tabs'],
           utils: ['clsx', 'tailwind-merge', 'class-variance-authority'],
           charts: ['recharts'],
-          supabase: ['@supabase/supabase-js', 'supabase']
+          supabase: ['@supabase/supabase-js']
         },
-        // Optimize chunk naming
         chunkFileNames: (chunkInfo) => {
           const facadeModuleId = chunkInfo.facadeModuleId ? chunkInfo.facadeModuleId.split('/').pop().replace('.tsx', '').replace('.ts', '') : 'chunk';
           return `assets/${facadeModuleId}-[hash].js`;
@@ -43,20 +40,10 @@ export default defineConfig(({ mode }) => ({
         }
       }
     },
-    // Enable CSS minification
     cssMinify: true,
-    // Optimize bundle size
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-      },
-    },
-    // Enable source maps for production debugging
+    minify: 'esbuild',
     sourcemap: false,
   },
-  // Optimize CSS processing
   css: {
     devSourcemap: true,
   },

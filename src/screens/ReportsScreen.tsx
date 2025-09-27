@@ -430,12 +430,12 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                       {(stat.income > 0 || stat.expense > 0) && (
                         <div className="grid grid-cols-2 gap-3 text-sm">
                           {stat.income > 0 && (
-                            <div>
+                            <div className="text-income">
                               Income: <MoneyDisplay amount={stat.income} size="sm" animate={false} />
                             </div>
                           )}
                           {stat.expense > 0 && (
-                            <div>
+                            <div className="text-expense">
                               Expense: <MoneyDisplay amount={stat.expense} size="sm" animate={false} />
                             </div>
                           )}

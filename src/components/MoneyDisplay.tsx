@@ -46,7 +46,7 @@ export const MoneyDisplay = ({
   };
 
   const getColorClass = () => {
-    // Always show colors for transaction amounts
+    if (!showSign) return "";
     return amount >= 0 ? "money-positive" : "money-negative";
   };
 
