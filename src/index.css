@@ -464,7 +464,7 @@ All colors MUST be HSL.
   /* FAB fixed positioning */
   .fab-container {
     position: fixed;
-    bottom: 5.5rem; /* Above the navigation bar with margin */
+    bottom: 8rem; /* Higher up from navigation bar */
     right: 1rem;
     z-index: 50; /* Above navigation */
   }
@@ -472,14 +472,14 @@ All colors MUST be HSL.
   /* Mobile and Desktop - same positioning */
   @media (max-width: 768px) {
     .fab-container {
-      bottom: 5.5rem;
+      bottom: 8rem;
       right: 1rem;
     }
   }
 
   @media (min-width: 769px) {
     .fab-container {
-      bottom: 5.5rem;
+      bottom: 8rem;
       right: 1rem;
     }
   }

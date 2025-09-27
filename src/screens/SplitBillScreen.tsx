@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, Pencil, ChevronDown, ImagePlus, History, Receipt, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, Pencil, ChevronDown, ImagePlus, History, Receipt, ArrowLeft, ArrowRight } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MoneyDisplay } from "@/components/MoneyDisplay";
 import { useFinancifyStore, type SplitBillHistory } from "@/store";
@@ -123,6 +123,27 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
       setAnimationDirection(null);
     };
   }, []);
+
+  // Auto-add current user when entering step 1
+  useEffect(() => {
+    if (step === 1) {
+      const defaultName = (profile?.full_name || user?.email?.split('@')[0] || '').trim();
+      if (defaultName) {
+        // Check if user already exists by name or if myPersonId is stale
+        const existingUser = people.find(p => p.name === defaultName);
+        const isMyPersonIdValid = myPersonId && people.some(p => p.id === myPersonId);
+        
+        // Add user if they don't exist or if myPersonId is invalid
+        if (!existingUser || !isMyPersonIdValid) {
+          const newPerson = { id: crypto.randomUUID(), name: defaultName };
+          setPeople(prev => [...prev, newPerson]);
+          setMyPersonId(newPerson.id);
+          setMyName(defaultName);
+          console.log('🔄 SplitBillScreen: Auto-added current user on step 1 entry:', defaultName);
+        }
+      }
+    }
+  }, [step, profile?.full_name, user?.email, people, myPersonId]);
 
   // Reset function to reset all state to initial values
   const resetSplitBillState = useCallback(() => {
@@ -503,7 +524,6 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
                       )}
                     </div>
                     <div className="mt-4 flex justify-end">
-                      <Button className="btn-primary" onClick={() => setStep(1)}>Continue</Button>
               </div>
             </div>
                 ) : (
@@ -554,7 +574,9 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
                 </div>
                 <div className="flex items-center gap-2">
                   <MoneyDisplay amount={personTotals[p.id]?.total_cents || 0} size="md" animate={false} />
-                  <Button variant="ghost" size="icon" onClick={() => removePerson(p.id)} className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                  {p.id !== myPersonId && (
+                    <Button variant="ghost" size="icon" onClick={() => removePerson(p.id)} className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                  )}
                 </div>
               </div>
             ))}
@@ -803,7 +825,7 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
 
       {/* Navigation */}
       {step >= 0 && (
-        <div className="flex items-center justify-between w-full px-0 py-4">
+        <div className="flex items-center justify-between w-full px-0 py-2">
           <Button 
             variant="outline" 
             onClick={() => setStep(prev => (prev > 0 ? ((prev - 1) as any) : -1))} 
@@ -817,14 +839,35 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
           <div className="flex items-center">
             {step < 3 && (
               <Button
-                className="btn-primary px-6 py-2"
-                onClick={() => setStep(prev => (prev + 1) as any)}
+                className="btn-primary px-4 py-2"
+                onClick={() => {
+                  // Auto-add current user when proceeding from step 1 to step 2
+                  if (step === 1) {
+                    const defaultName = (profile?.full_name || user?.email?.split('@')[0] || '').trim();
+                    if (defaultName) {
+                      // Check if user already exists by name or if myPersonId is stale
+                      const existingUser = people.find(p => p.name === defaultName);
+                      const isMyPersonIdValid = myPersonId && people.some(p => p.id === myPersonId);
+                      
+                      // Add user if they don't exist or if myPersonId is invalid
+                      if (!existingUser || !isMyPersonIdValid) {
+                        const newPerson = { id: crypto.randomUUID(), name: defaultName };
+                        setPeople(prev => [...prev, newPerson]);
+                        setMyPersonId(newPerson.id);
+                        setMyName(defaultName);
+                        console.log('🔄 SplitBillScreen: Auto-added current user:', defaultName);
+                      }
+                    }
+                  }
+                  setStep(prev => (prev + 1) as any);
+                }}
                 disabled={
                   (step === 1 && !canProceedFromPeople) ||
                   (step === 2 && !allItemsHaveParticipants)
                 }
               >
                 Next
+                <ArrowRight className="w-4 h-4" />
               </Button>
             )}
             {step === 3 && (
@@ -883,6 +926,7 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
                   }
                 }}
               >
+                <ArrowRight className="w-4 h-4 mr-1" />
                 Done
               </Button>
             )}
