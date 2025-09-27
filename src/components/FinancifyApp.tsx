@@ -7,21 +7,21 @@ import { SettingsScreen } from "@/screens/SettingsScreen";
 import { AuthScreen } from "./AuthScreen";
 import { FloatingActionButton } from "./FloatingActionButton";
 import { TransactionInputDialog } from "./TransactionInputDialog";
-import { PDFUploadForm } from "./PDFUploadForm";
 import { useFinancifyStore } from "@/store";
 import { supabase } from "@/integrations/supabase/client";
 import { useEncryption } from "@/hooks/useEncryption";
 import { EncryptionSetup } from "@/components/EncryptionSetup";
 import { FirstTimeEncryption } from "@/components/FirstTimeEncryption";
+import { useNavigate } from "react-router-dom";
 
 export const FinancifyApp = () => {
   const [activeTab, setActiveTab] = useState<NavigationTab>("dashboard");
   const [isInitialized, setIsInitialized] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showTransactionDialog, setShowTransactionDialog] = useState(false);
-  const [showPDFUpload, setShowPDFUpload] = useState(false);
   const [splitBillResetFn, setSplitBillResetFn] = useState<(() => void) | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   const { 
     user, 
     isAuthenticated, 
@@ -233,10 +233,6 @@ export const FinancifyApp = () => {
     }
   };
 
-  const handleImportPDF = () => {
-    setShowPDFUpload(true);
-  };
-
   const handleInputTransaction = () => {
     setShowTransactionDialog(true);
   };
@@ -278,7 +274,6 @@ export const FinancifyApp = () => {
         </main>
 
         <FloatingActionButton 
-          onImportPDF={handleImportPDF}
           onInputTransaction={handleInputTransaction}
         />
 
@@ -289,28 +284,6 @@ export const FinancifyApp = () => {
         isOpen={showTransactionDialog}
         onClose={() => setShowTransactionDialog(false)}
       />
-
-      {showPDFUpload && (
-        <div className="fixed inset-0 bg-background z-50">
-          <div className="max-w-md mx-auto bg-background min-h-screen">
-            <div className="sticky top-0 bg-background/80 backdrop-blur-sm border-b border-border z-40">
-              <div className="px-4 py-4 flex items-center justify-between">
-                <h1 className="text-xl font-bold text-primary">Import PDF</h1>
-                <button 
-                  onClick={() => setShowPDFUpload(false)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-            
-            <div className="px-4 py-4">
-              <PDFUploadForm onClose={() => setShowPDFUpload(false)} />
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

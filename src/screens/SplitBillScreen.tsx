@@ -22,7 +22,7 @@ type Item = {
   participants: string[]; // person ids
 };
 
-export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () => void) => void; isActive?: boolean }) => {
+export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (resetFn: () => void) => void; isActive?: boolean; onNavigate?: () => void }) => {
   const { createTransaction, user, profile, saveSplitBillHistory, splitBillHistory, loadSplitBillHistory } = useFinancifyStore();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
@@ -437,7 +437,7 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
                 </div>
               </Card>
               
-              <Card className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={handleViewHistory}>
+              <Card className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={onNavigate || handleViewHistory}>
                 <div className="flex items-center space-x-4">
                   <div className="p-3 bg-primary/10 rounded-lg">
                     <History className="w-8 h-8 text-primary" />

@@ -1,17 +1,18 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Plus, FileText, Upload } from "lucide-react";
+import { Plus, FileText, Upload, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 interface FloatingActionButtonProps {
-  onImportPDF: () => void;
   onInputTransaction: () => void;
 }
 
-export const FloatingActionButton = ({ onImportPDF, onInputTransaction }: FloatingActionButtonProps) => {
+export const FloatingActionButton = ({ onInputTransaction }: FloatingActionButtonProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const fabRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   const handleToggle = () => {
     setIsOpen(!isOpen);
@@ -36,7 +37,12 @@ export const FloatingActionButton = ({ onImportPDF, onInputTransaction }: Floati
 
   const handleImportPDF = () => {
     setIsOpen(false);
-    onImportPDF();
+    navigate('/import-pdf');
+  };
+
+  const handleSplitBill = () => {
+    setIsOpen(false);
+    navigate('/split-bill');
   };
 
   const handleInputTransaction = () => {
@@ -64,6 +70,23 @@ export const FloatingActionButton = ({ onImportPDF, onInputTransaction }: Floati
             <div className="text-left">
               <div className="font-medium">Import PDF</div>
               <div className="text-xs text-muted-foreground">Bank statement</div>
+            </div>
+          </Button>
+        </Card>
+
+        {/* Split Bill Option */}
+        <Card className="financial-card p-3 shadow-lg">
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-3 h-auto p-3"
+            onClick={handleSplitBill}
+          >
+            <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
+              <Users className="w-4 h-4 text-primary" />
+            </div>
+            <div className="text-left">
+              <div className="font-medium">Split Bill Now</div>
+              <div className="text-xs text-muted-foreground">Create new split</div>
             </div>
           </Button>
         </Card>

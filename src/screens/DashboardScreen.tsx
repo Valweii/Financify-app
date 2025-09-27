@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/StatCard";
 import { MoneyDisplay } from "@/components/MoneyDisplay";
 import { useFinancifyStore } from "@/store";
-import { Upload, TrendingUp, TrendingDown, Wallet, ArrowRight, PieChart } from "lucide-react";
+import { Upload, TrendingUp, TrendingDown, Wallet, ArrowRight, PieChart, Users } from "lucide-react";
 import { NavigationTab } from "@/components/Navigation";
 import heroImage from "@/assets/financify-hero.jpg";
 import { useMemo, useState, useEffect } from "react";
@@ -11,6 +11,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useNavigate } from "react-router-dom";
 
 interface DashboardScreenProps {
   onNavigate: (tab: NavigationTab) => void;
@@ -26,6 +27,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
     transactions,
     isLoading,
   } = useFinancifyStore();
+  const navigate = useNavigate();
 
   const totalBalance = getTotalBalance();
   const monthlyStats = getMonthlyStats();
@@ -127,6 +129,60 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
           </p>
         </div>
       </Card>
+
+      {/* Quick Actions */}
+      <div>
+        <h2 className="text-responsive-lg font-semibold mb-3">Quick Actions</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="financial-card p-4 cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => navigate('/import-pdf')}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                <Upload className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium">Import PDF</p>
+                <p className="text-xs text-muted-foreground">Bank statement</p>
+              </div>
+            </div>
+          </Card>
+          
+          <Card className="financial-card p-4 cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => navigate('/split-bill')}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                <Users className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium">Split Bill</p>
+                <p className="text-xs text-muted-foreground">Create new split</p>
+              </div>
+            </div>
+          </Card>
+          
+          <Card className="financial-card p-4 cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => navigate('/active-split-bills')}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                <Users className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium">Active Splits</p>
+                <p className="text-xs text-muted-foreground">View active bills</p>
+              </div>
+            </div>
+          </Card>
+          
+          <Card className="financial-card p-4 cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => onNavigate('reports')}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                <PieChart className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium">Reports</p>
+                <p className="text-xs text-muted-foreground">View analytics</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
 
       {/* Monthly Stats */}
       <div>
