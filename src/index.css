@@ -172,6 +172,124 @@ All colors MUST be HSL.
     -ms-overflow-style: none; /* IE and Edge */
     gap: 2rem; /* Add gap between pages */
   }
+
+  /* Split Bill Edit Mode Animations */
+  .edit-mode-button {
+    transition: all 200ms ease-in-out;
+  }
+
+  .edit-mode-button.active {
+    background-color: hsl(var(--primary) / 0.1);
+    border-color: hsl(var(--primary) / 0.3);
+    color: hsl(var(--primary));
+  }
+
+  .edit-icon-enter {
+    animation: slideInFromRight 200ms ease-out;
+  }
+
+  .delete-icon-enter {
+    animation: scaleInFade 200ms ease-out;
+  }
+
+  .edit-icon-hover {
+    animation: wiggle 0.3s ease-in-out;
+  }
+
+  .delete-icon-press {
+    animation: redRipple 0.3s ease-out;
+  }
+
+  .screen-dim {
+    opacity: 0.9;
+    transition: opacity 200ms ease-in-out;
+  }
+
+  @keyframes slideInFromRight {
+    0% {
+      transform: translateX(16px);
+      opacity: 0;
+    }
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes scaleInFade {
+    0% {
+      transform: scale(0.8);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-3deg); }
+    75% { transform: rotate(3deg); }
+  }
+
+  @keyframes redRipple {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.4);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 0 0 8px hsl(var(--destructive) / 0.2);
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 hsl(var(--destructive) / 0);
+    }
+  }
+
+  /* Exit Animations */
+  .edit-icon-exit {
+    animation: slideOutToRight 300ms ease-in;
+  }
+
+  .delete-icon-exit {
+    animation: scaleOutFade 300ms ease-in;
+  }
+
+  .edit-mode-button.exiting {
+    background-color: transparent;
+    border-color: hsl(var(--border));
+    color: hsl(var(--foreground));
+    transition: all 200ms ease-in-out;
+  }
+
+  .screen-brighten {
+    opacity: 1;
+    transition: opacity 200ms ease-in-out;
+  }
+
+  @keyframes slideOutToRight {
+    0% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(16px);
+      opacity: 0;
+    }
+  }
+
+  @keyframes scaleOutFade {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(0.8);
+      opacity: 0;
+    }
+  }
   
   .horizontal-scroll-container::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Opera */
@@ -190,6 +308,67 @@ All colors MUST be HSL.
   .horizontal-scroll-item > * {
     width: 100%;
     max-width: 100%;
+  }
+
+  /* Split Bill Swipe Animations */
+  .split-swipe-enter {
+    animation: slideInFromRight 300ms ease-out;
+  }
+
+  .split-swipe-exit {
+    animation: slideOutToLeft 300ms ease-in;
+  }
+
+  .history-swipe-enter {
+    animation: slideInFromLeft 300ms ease-out;
+  }
+
+  .history-swipe-exit {
+    animation: slideOutToRight 300ms ease-in;
+  }
+
+  @keyframes slideInFromRight {
+    0% {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideOutToLeft {
+    0% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+  }
+
+  @keyframes slideInFromLeft {
+    0% {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideOutToRight {
+    0% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(100%);
+      opacity: 0;
+    }
   }
 
   /* Press interaction styles */

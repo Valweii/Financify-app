@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, Pencil, ChevronDown, ImagePlus, History, Receipt } from "lucide-react";
+import { Plus, Trash2, Pencil, ChevronDown, ImagePlus, History, Receipt, ArrowLeft } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MoneyDisplay } from "@/components/MoneyDisplay";
 import { useFinancifyStore, type SplitBillHistory } from "@/store";
@@ -42,9 +42,87 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
   const [myPersonId, setMyPersonId] = useState<string | null>(null);
   const [myName, setMyName] = useState<string>("");
   const [isEditMode, setIsEditMode] = useState<boolean>(false);
+  const [isExitingEditMode, setIsExitingEditMode] = useState<boolean>(false);
+  const [isAnimating, setIsAnimating] = useState<boolean>(false);
+  const [animationDirection, setAnimationDirection] = useState<'enter' | 'exit' | null>(null);
+
+  // Handle edit mode toggle with exit animation
+  const handleEditModeToggle = () => {
+    if (isEditMode) {
+      // Exiting edit mode - start exit animation
+      setIsExitingEditMode(true);
+      setTimeout(() => {
+        setIsEditMode(false);
+        setIsExitingEditMode(false);
+      }, 300); // Match animation duration
+    } else {
+      // Entering edit mode
+      setIsEditMode(true);
+    }
+  };
+
+  // Handle swipe animations
+  const handleStartSplitBill = () => {
+    if (isAnimating) return; // Prevent multiple animations
+    setIsAnimating(true);
+    setAnimationDirection('exit');
+    setTimeout(() => {
+      setStep(0);
+      // Use requestAnimationFrame to ensure DOM update before applying enter animation
+      requestAnimationFrame(() => {
+        setAnimationDirection('enter');
+        setTimeout(() => {
+          setIsAnimating(false);
+          setAnimationDirection(null);
+        }, 300); // Match CSS animation duration exactly
+      });
+    }, 300); // Match CSS animation duration exactly
+  };
+
+  const handleViewHistory = () => {
+    if (isAnimating) return; // Prevent multiple animations
+    setIsAnimating(true);
+    setAnimationDirection('exit');
+    setTimeout(() => {
+      setShowHistory(true);
+      // Use requestAnimationFrame to ensure DOM update before applying enter animation
+      requestAnimationFrame(() => {
+        setAnimationDirection('enter');
+        setTimeout(() => {
+          setIsAnimating(false);
+          setAnimationDirection(null);
+        }, 300); // Match CSS animation duration exactly
+      });
+    }, 300); // Match CSS animation duration exactly
+  };
+
+  const handleBackFromHistory = () => {
+    if (isAnimating) return; // Prevent multiple animations
+    setIsAnimating(true);
+    setAnimationDirection('exit');
+    setTimeout(() => {
+      setShowHistory(false);
+      // Use requestAnimationFrame to ensure DOM update before applying enter animation
+      requestAnimationFrame(() => {
+        setAnimationDirection('enter');
+        setTimeout(() => {
+          setIsAnimating(false);
+          setAnimationDirection(null);
+        }, 300); // Match CSS animation duration exactly
+      });
+    }, 300); // Match CSS animation duration exactly
+  };
 
   const [newPersonName, setNewPersonName] = useState("");
   const [draftItem, setDraftItem] = useState<{ name: string; price_cents: number; participants: string[] }>({ name: "", price_cents: 0, participants: [] });
+
+  // Cleanup animation state on unmount
+  useEffect(() => {
+    return () => {
+      setIsAnimating(false);
+      setAnimationDirection(null);
+    };
+  }, []);
 
   // Reset function to reset all state to initial values
   const resetSplitBillState = useCallback(() => {
@@ -328,10 +406,12 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
       {step === -1 && (
         <div className="space-y-6">
           {showHistory ? (
-            <SplitBillHistoryScreen onBack={() => setShowHistory(false)} />
+            <div className={`${isAnimating && animationDirection === 'exit' ? 'history-swipe-exit' : 'history-swipe-enter'}`}>
+              <SplitBillHistoryScreen onBack={handleBackFromHistory} />
+            </div>
           ) : (
-            <div className="flex flex-col gap-4">
-              <Card className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setStep(0)}>
+            <div className={`flex flex-col gap-4 ${isAnimating && animationDirection === 'exit' ? 'split-swipe-exit' : 'split-swipe-enter'}`}>
+              <Card className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={handleStartSplitBill}>
                 <div className="flex items-center space-x-4">
                   <div className="p-3 bg-primary/10 rounded-lg">
                     <Receipt className="w-8 h-8 text-primary" />
@@ -343,7 +423,7 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
                 </div>
               </Card>
               
-              <Card className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setShowHistory(true)}>
+              <Card className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={handleViewHistory}>
                 <div className="flex items-center space-x-4">
                   <div className="p-3 bg-primary/10 rounded-lg">
                     <History className="w-8 h-8 text-primary" />
@@ -360,10 +440,10 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
       )}
 
       {step === 0 && (
-        <Card className="financial-card p-4 h-[65vh] flex flex-col">
+        <Card className={`financial-card p-4 h-[65vh] flex flex-col ${isAnimating && animationDirection === 'enter' ? 'split-swipe-enter' : isAnimating && animationDirection === 'exit' ? 'split-swipe-exit' : ''}`}>
           <div className="flex-1 flex flex-col items-center justify-center">
             {isOcrLoading ? (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center pointer-events-auto">
                 <Card className="financial-card p-8 max-w-sm mx-4">
                   <div className="flex flex-col items-center justify-center space-y-6">
                     <div className="relative">
@@ -485,9 +565,14 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
       {step === 2 && (
         <Card className="financial-card p-4 h-[65vh] flex flex-col">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold">Assign items</h3>
+            <h3 className={`text-lg font-semibold transition-opacity duration-200 ${isEditMode ? 'screen-dim' : ''} ${!isEditMode && !isExitingEditMode ? 'screen-brighten' : ''}`}>Assign items</h3>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setIsEditMode(v => !v)}>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleEditModeToggle}
+                className={`edit-mode-button ${isEditMode ? 'active' : ''} ${isExitingEditMode ? 'exiting' : ''}`}
+              >
                 {isEditMode ? 'Done Editing' : 'Edit Mode'}
               </Button>
             <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
@@ -563,8 +648,9 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
             {items.length === 0 && (
               <p className="text-sm text-muted-foreground">No items yet</p>
             )}
-            {items.map(it => {
+            {items.map((it, index) => {
               const isSelected = Boolean(assignPersonId && it.participants.includes(assignPersonId));
+              const animationDelay = isEditMode ? `${index * 40}ms` : '0ms';
               return (
                 <div
                   key={it.id}
@@ -608,23 +694,38 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
                       <div className="w-24 text-right">
                         <MoneyDisplay amount={it.price_cents} size="md" animate={false} />
                       </div>
-                      {isEditMode && (
+                      {(isEditMode || isExitingEditMode) && (
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={(e) => { e.stopPropagation(); setEditItemId(it.id); setEditItemPrice(String(it.price_cents)); setIsEditItemOpen(true); }}
-                        className={`hover:text-foreground ${isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}
+                        className={`${isExitingEditMode ? 'edit-icon-exit' : 'edit-icon-enter'} hover:text-foreground ${isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}
+                        style={{ animationDelay }}
                         aria-label="Edit price"
+                        onMouseEnter={(e) => {
+                          if (!isExitingEditMode) {
+                            e.currentTarget.classList.add('edit-icon-hover');
+                            setTimeout(() => e.currentTarget.classList.remove('edit-icon-hover'), 300);
+                          }
+                        }}
                       >
                         <Pencil className="w-4 h-4" />
                       </Button>
                       )}
-                      {isEditMode && (
+                      {(isEditMode || isExitingEditMode) && (
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={(e) => { e.stopPropagation(); removeItem(it.id); }}
-                        className={`hover:text-destructive ${isSelected ? 'text-primary-foreground/80' : 'text-destructive'}`}
+                        onClick={(e) => { 
+                          if (!isExitingEditMode) {
+                            e.stopPropagation(); 
+                            e.currentTarget.classList.add('delete-icon-press');
+                            setTimeout(() => e.currentTarget.classList.remove('delete-icon-press'), 300);
+                            removeItem(it.id); 
+                          }
+                        }}
+                        className={`${isExitingEditMode ? 'delete-icon-exit' : 'delete-icon-enter'} hover:text-destructive ${isSelected ? 'text-primary-foreground/80' : 'text-destructive'}`}
+                        style={{ animationDelay }}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -702,81 +803,90 @@ export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () 
 
       {/* Navigation */}
       {step >= 0 && (
-        <div className="flex items-center justify-between">
-          <Button variant="outline" onClick={() => setStep(prev => (prev > 0 ? ((prev - 1) as any) : -1))} disabled={false}>Back</Button>
-        <div className="flex items-center gap-2">
-          {step < 3 && (
-            <Button
-              className="btn-primary"
-              onClick={() => setStep(prev => (prev + 1) as any)}
-              disabled={
-                (step === 1 && !canProceedFromPeople) ||
-                (step === 2 && !allItemsHaveParticipants)
-              }
-            >
-              Next
-            </Button>
-          )}
-          {step === 3 && (
-            <Button
-              className="btn-primary"
-              onClick={async () => {
-                try {
-                  const today = new Date();
-                  const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-                  
-                  // Calculate total amount for the entire bill
-                  const totalAmount = Object.values(personTotals).reduce((sum, person) => sum + (person?.total_cents || 0), 0);
-                  
-                  // Save split bill history
-                  const splitBillData = {
-                    id: crypto.randomUUID(),
-                    date,
-                    total_amount_cents: totalAmount,
-                    people,
-                    items,
-                    tax_choice: 'none' as 'none',
-                    service_fee_cents: 0,
-                    person_totals: personTotals,
-                    payment_status: {}, // Initialize empty payment status
-                    created_at: new Date().toISOString(),
-                  };
-                  
-                  console.log('Saving split bill data:', splitBillData);
-                  await saveSplitBillHistory(splitBillData);
-                  console.log('Split bill saved successfully');
-                  
-                  // Also create transaction for the current user if they have a share
-                  if (myPersonId) {
-                    const total = personTotals[myPersonId]?.total_cents || 0;
-                    if (total > 0) {
-                      const who = myName.trim() || people.find(p => p.id === myPersonId)?.name || 'Me';
-                      await createTransaction({
-                        date,
-                        description: `Split bill (${who})`,
-                        type: 'debit',
-                        amount_cents: total,
-                        category: 'Split Bill',
-                      });
-                      toast({ title: 'Split bill saved', description: 'Your share has been saved and split bill history recorded.' });
+        <div className="flex items-center justify-between w-full px-0 py-4">
+          <Button 
+            variant="outline" 
+            onClick={() => setStep(prev => (prev > 0 ? ((prev - 1) as any) : -1))} 
+            disabled={false}
+            className="flex items-center gap-2 px-4 py-2"
+          >
+            <ArrowLeft className="w-4 h-4" /> 
+            Back
+          </Button>
+          
+          <div className="flex items-center">
+            {step < 3 && (
+              <Button
+                className="btn-primary px-6 py-2"
+                onClick={() => setStep(prev => (prev + 1) as any)}
+                disabled={
+                  (step === 1 && !canProceedFromPeople) ||
+                  (step === 2 && !allItemsHaveParticipants)
+                }
+              >
+                Next
+              </Button>
+            )}
+            {step === 3 && (
+              <Button
+                className="btn-primary px-6 py-2"
+                onClick={async () => {
+                  try {
+                    const today = new Date();
+                    const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+                    
+                    // Calculate total amount for the entire bill
+                    const totalAmount = Object.values(personTotals).reduce((sum, person) => sum + (person?.total_cents || 0), 0);
+                    
+                    // Save split bill history
+                    const splitBillData = {
+                      id: crypto.randomUUID(),
+                      date,
+                      total_amount_cents: totalAmount,
+                      people,
+                      items,
+                      tax_choice: 'none' as 'none',
+                      service_fee_cents: 0,
+                      person_totals: personTotals,
+                      payment_status: {}, // Initialize empty payment status
+                      created_at: new Date().toISOString(),
+                    };
+                    
+                    console.log('Saving split bill data:', splitBillData);
+                    await saveSplitBillHistory(splitBillData);
+                    console.log('Split bill saved successfully');
+                    
+                    // Also create transaction for the current user if they have a share
+                    if (myPersonId) {
+                      const total = personTotals[myPersonId]?.total_cents || 0;
+                      if (total > 0) {
+                        const who = myName.trim() || people.find(p => p.id === myPersonId)?.name || 'Me';
+                        await createTransaction({
+                          date,
+                          description: `Split bill (${who})`,
+                          type: 'debit',
+                          amount_cents: total,
+                          category: 'Split Bill',
+                        });
+                        toast({ title: 'Split bill saved', description: 'Your share has been saved and split bill history recorded.' });
+                      } else {
+                        toast({ title: 'Split bill saved', description: 'Split bill history has been recorded.' });
+                      }
                     } else {
                       toast({ title: 'Split bill saved', description: 'Split bill history has been recorded.' });
                     }
-                  } else {
-                    toast({ title: 'Split bill saved', description: 'Split bill history has been recorded.' });
+                  } catch (error) {
+                    console.error('Error saving split bill:', error);
+                    toast({ title: 'Error', description: 'Failed to save split bill. Please try again.' });
+                  } finally {
+                    setStep(-1);
                   }
-                } catch (error) {
-                  console.error('Error saving split bill:', error);
-                  toast({ title: 'Error', description: 'Failed to save split bill. Please try again.' });
-                } finally {
-                  setStep(-1);
-                }
-              }}
-            >
-              Done
-            </Button>
-          )}
-        </div>
+                }}
+              >
+                Done
+              </Button>
+            )}
+          </div>
         </div>
       )}
       

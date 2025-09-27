@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MoneyDisplay } from "@/components/MoneyDisplay";
 import { useFinancifyStore, type SplitBillHistory } from "@/store";
-import { History, CheckCircle, Circle, Eye, EyeOff } from "lucide-react";
+import { History, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
@@ -13,6 +13,8 @@ export const SplitBillHistoryScreen = ({ onBack }: { onBack: () => void }) => {
   const [selectedBill, setSelectedBill] = useState<SplitBillHistory | null>(null);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState<boolean>(false);
   const [lastToggle, setLastToggle] = useState<{ billId: string; personId: string } | null>(null);
+  const [isAnimating, setIsAnimating] = useState<boolean>(false);
+  const [animationDirection, setAnimationDirection] = useState<'enter' | 'exit' | null>(null);
 
   // Best-effort refresh
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -56,15 +58,64 @@ export const SplitBillHistoryScreen = ({ onBack }: { onBack: () => void }) => {
     updatePaymentStatus(billId, personId, hasPaid);
   };
 
+  // Handle swipe animations
+  const handleViewSummary = (bill: SplitBillHistory) => {
+    if (isAnimating) return; // Prevent multiple animations
+    setIsAnimating(true);
+    setAnimationDirection('exit');
+    setTimeout(() => {
+      setSelectedBill(bill);
+      setShowSummary(true);
+      // Use requestAnimationFrame to ensure DOM update before applying enter animation
+      requestAnimationFrame(() => {
+        setAnimationDirection('enter');
+        setTimeout(() => {
+          setIsAnimating(false);
+          setAnimationDirection(null);
+        }, 300); // Match CSS animation duration exactly
+      });
+    }, 300); // Match CSS animation duration exactly
+  };
+
+  const handleBackToList = () => {
+    if (isAnimating) return; // Prevent multiple animations
+    setIsAnimating(true);
+    setAnimationDirection('exit');
+    setTimeout(() => {
+      setShowSummary(false);
+      setSelectedBill(null);
+      // Use requestAnimationFrame to ensure DOM update before applying enter animation
+      requestAnimationFrame(() => {
+        setAnimationDirection('enter');
+        setTimeout(() => {
+          setIsAnimating(false);
+          setAnimationDirection(null);
+        }, 300); // Match CSS animation duration exactly
+      });
+    }, 300); // Match CSS animation duration exactly
+  };
+
+  // Cleanup animation state on unmount
+  React.useEffect(() => {
+    return () => {
+      setIsAnimating(false);
+      setAnimationDirection(null);
+    };
+  }, []);
+
   if (showSummary && selectedBill) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={() => setShowSummary(false)} className="px-2">
-            <EyeOff className="w-4 h-4 mr-1" /> Back to List
-          </Button>
+      <div className={`space-y-6 ${isAnimating && animationDirection === 'exit' ? 'history-swipe-exit' : 'history-swipe-enter'}`}>
+        <div className="flex items-center justify-between w-full px-0 py-4">
           <h2 className="text-xl font-semibold">Split Bill Summary</h2>
-          <div></div>
+          <Button 
+            variant="ghost" 
+            onClick={handleBackToList} 
+            className="flex items-center gap-2 px-4 py-2"
+          >
+            <ArrowLeft className="w-4 h-4" /> 
+            Back
+          </Button>
         </div>
 
         <Card className="financial-card p-6">
@@ -102,32 +153,36 @@ export const SplitBillHistoryScreen = ({ onBack }: { onBack: () => void }) => {
               const personTotal = selectedBill.person_totals[person.id]?.total_cents || 0;
               
               return (
-                <div key={person.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                <div 
+                  key={person.id} 
+                  className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer hover:shadow-md transition-all duration-300 ease-in-out ${
+                    hasPaid
+                      ? 'bg-primary text-primary-foreground border-primary shadow-md'
+                      : 'bg-muted border-border/50 hover:shadow-[var(--shadow-float)]'
+                  }`}
+                  onClick={() => handlePaymentToggle(selectedBill.id, person.id, !hasPaid)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === ' ' || e.key === 'Enter') {
+                      e.preventDefault();
+                      handlePaymentToggle(selectedBill.id, person.id, !hasPaid);
+                    }
+                  }}
+                >
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="text-sm">{getInitials(person.name)}</AvatarFallback>
                     </Avatar>
                     <div>
                       <p className="font-medium">{person.name}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className={`text-sm transition-colors duration-300 ease-in-out ${hasPaid ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
                         {hasPaid ? 'Paid' : 'Pending'}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <MoneyDisplay amount={personTotal} size="md" />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handlePaymentToggle(selectedBill.id, person.id, !hasPaid)}
-                      className="p-1"
-                    >
-                      {hasPaid ? (
-                        <CheckCircle className="w-5 h-5 text-green-500" />
-                      ) : (
-                        <Circle className="w-5 h-5 text-muted-foreground" />
-                      )}
-                    </Button>
                   </div>
                 </div>
               );
@@ -187,11 +242,16 @@ export const SplitBillHistoryScreen = ({ onBack }: { onBack: () => void }) => {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className={`space-y-4 ${isAnimating && animationDirection === 'exit' ? 'split-swipe-exit' : 'split-swipe-enter'}`}>
+      <div className="flex items-center justify-between w-full px-0 py-4">
         <h2 className="text-xl font-semibold">Active Split Bill</h2>
-        <Button variant="ghost" onClick={onBack} className="px-2">
-          <History className="w-4 h-4 mr-1" /> Back
+        <Button 
+          variant="ghost" 
+          onClick={onBack} 
+          className="flex items-center gap-2 px-4 py-2"
+        >
+          <ArrowLeft className="w-4 h-4" /> 
+          Back
         </Button>
       </div>
 
@@ -227,10 +287,7 @@ export const SplitBillHistoryScreen = ({ onBack }: { onBack: () => void }) => {
 
                 <div className="mt-4 pt-3 border-t">
                   <Button 
-                    onClick={() => {
-                      setSelectedBill(history);
-                      setShowSummary(true);
-                    }}
+                    onClick={() => handleViewSummary(history)}
                     className="w-full"
                     variant="outline"
                   >
