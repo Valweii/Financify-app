@@ -372,8 +372,8 @@ const TransactionEditItem = ({
               <label className="text-sm font-medium">Amount</label>
               <Input
                 type="number"
-                value={editData.amount_cents}
-                onChange={(e) => setEditData({ ...editData, amount_cents: parseFloat(e.target.value) })}
+                value={editData.amount_cents / 100}
+                onChange={(e) => setEditData({ ...editData, amount_cents: parseFloat(e.target.value) * 100 })}
                 className="mt-1"
               />
               {errors.amount && <p className="text-destructive text-xs mt-1">{errors.amount}</p>}

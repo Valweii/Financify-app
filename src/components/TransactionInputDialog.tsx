@@ -46,7 +46,8 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
         amount_cents: finalAmount,
         type: formData.type,
         category: formData.category,
-        date: formData.date
+        date: formData.date,
+        source: 'Manual Entry'
       });
 
       toast({
