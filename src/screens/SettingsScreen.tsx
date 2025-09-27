@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useFinancifyStore } from "@/store";
 import { User, LogOut, Shield, HelpCircle, ExternalLink, Moon, ChevronDown, ChevronUp } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -55,16 +55,6 @@ export const SettingsScreen = () => {
       title: "Appearance",
       description: "Toggle dark mode",
       action: () => {},
-      disabled: false
-    },
-    {
-      icon: Shield,
-      title: "Security & Privacy",
-      description: "Encryption setup and backup code",
-      action: () => {
-        const el = document.getElementById('encryption-section');
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      },
       disabled: false
     },
     {
@@ -189,7 +179,7 @@ export const SettingsScreen = () => {
                 <p className="text-sm text-muted-foreground">{item.description}</p>
               </div>
               {item.title === 'Appearance' ? (
-                <Switch checked={theme === 'dark'} onCheckedChange={(v) => setTheme(v ? 'dark' : 'light')} />
+                <AnimatedSwitch checked={theme === 'dark'} onCheckedChange={(v) => setTheme(v ? 'dark' : 'light')} />
               ) : (
                 !item.disabled && item.title !== 'Profile Information' && <ExternalLink className="w-4 h-4 text-muted-foreground" />
               )}
@@ -263,5 +253,66 @@ export const SettingsScreen = () => {
         </Button>
       )}
     </div>
+  );
+};
+
+// Custom Animated Switch Component
+interface AnimatedSwitchProps {
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}
+
+const AnimatedSwitch = ({ checked, onCheckedChange }: AnimatedSwitchProps) => {
+  const [isAnimating, setIsAnimating] = useState(false);
+  const switchRef = useRef<HTMLButtonElement>(null);
+
+  const handleToggle = () => {
+    setIsAnimating(true);
+    onCheckedChange(!checked);
+    
+    // Reset animation state after glow animation completes
+    setTimeout(() => {
+      setIsAnimating(false);
+    }, 400);
+  };
+
+  return (
+    <button
+      ref={switchRef}
+      onClick={handleToggle}
+      className={`
+        relative w-12 h-6 rounded-full transition-colors duration-300 ease-out
+        ${checked 
+          ? 'bg-primary' 
+          : 'bg-muted'
+        }
+        focus:outline-none focus:ring-2 focus:ring-primary/20
+        ${isAnimating ? 'animate-pulse-glow' : ''}
+      `}
+      style={{
+        transition: 'background-color 300ms ease-out'
+      }}
+    >
+      {/* Glow pulse effect when toggled ON */}
+      {isAnimating && checked && (
+        <div 
+          className="absolute inset-0 rounded-full bg-primary/30 animate-glow-pulse"
+          style={{
+            animation: 'glowPulse 400ms ease-out'
+          }}
+        />
+      )}
+      
+      {/* Knob */}
+      <div
+        className={`
+          absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-160
+          ${checked ? 'translate-x-6' : 'translate-x-0.5'}
+        `}
+        style={{
+          transition: 'transform 160ms cubic-bezier(0.2, 0.9, 0.3, 1)'
+        }}
+      />
+    </button>
   );
 };

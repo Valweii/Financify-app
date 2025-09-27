@@ -4,7 +4,7 @@ import { StatCard } from "@/components/StatCard";
 import { MoneyDisplay } from "@/components/MoneyDisplay";
 import { useFinancifyStore, ImportedTransaction } from "@/store";
 import { Calendar, TrendingUp, TrendingDown, PieChart, Plus, Trash2, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -12,11 +12,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/components/ui/use-toast";
 
 
-export const ReportsScreen = () => {
+export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
   const { transactions, createTransaction, deleteTransaction } = useFinancifyStore();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [monthlyDate, setMonthlyDate] = useState(new Date());
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("daily");
+  const [highlightStyle, setHighlightStyle] = useState<React.CSSProperties>({});
+  const tabsListRef = useRef<HTMLDivElement>(null);
   const [form, setForm] = useState<ImportedTransaction & { date: string }>({
     date: new Date().toISOString().split('T')[0],
     description: '',
@@ -26,6 +29,69 @@ export const ReportsScreen = () => {
   });
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [expandedTransaction, setExpandedTransaction] = useState<string | null>(null);
+  const [displayedTransactionsCount, setDisplayedTransactionsCount] = useState(50);
+
+  // Get the most recent transactions to display
+  const displayedTransactions = useMemo(() => {
+    return transactions
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, displayedTransactionsCount);
+  }, [transactions, displayedTransactionsCount]);
+
+  const hasMoreTransactions = transactions.length > displayedTransactionsCount;
+
+  const loadMoreTransactions = () => {
+    setDisplayedTransactionsCount(prev => Math.min(prev + 50, transactions.length));
+  };
+
+  // Reset displayed transactions count when switching away from "all" tab
+  useEffect(() => {
+    if (activeTab !== "all") {
+      setDisplayedTransactionsCount(50);
+    }
+  }, [activeTab]);
+
+  // Reset activeTab to "daily" when screen becomes inactive
+  useEffect(() => {
+    if (isActive === false) {
+      setActiveTab("daily");
+      setDisplayedTransactionsCount(50);
+    }
+  }, [isActive]);
+
+  // Animation logic for tabs
+  useEffect(() => {
+    const updateHighlightPosition = () => {
+      if (!tabsListRef.current) return;
+
+      const tabs = ["daily", "monthly", "all"];
+      const activeIndex = tabs.indexOf(activeTab);
+      const tabWidth = tabsListRef.current.offsetWidth / tabs.length;
+      const translateX = activeIndex * tabWidth;
+
+      setHighlightStyle({
+        transform: `translateX(${translateX}px)`,
+        width: `${tabWidth}px`,
+        height: '100%',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        backgroundColor: 'hsl(var(--primary))',
+        borderRadius: 'calc(var(--radius) - 2px)',
+        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        zIndex: 1,
+      });
+    };
+
+    // Update position immediately
+    updateHighlightPosition();
+
+    // Update position on window resize
+    const handleResize = () => updateHighlightPosition();
+    window.addEventListener('resize', handleResize);
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, [activeTab]);
   const categoryOptions = useMemo(() => {
     const defaults = ['Income', 'Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Education', 'Savings', 'Other'];
     const set = new Set<string>(defaults);
@@ -115,11 +181,32 @@ export const ReportsScreen = () => {
         <p className="text-muted-foreground">Analyze your spending patterns</p>
       </div>
 
-      <Tabs defaultValue="daily" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-secondary">
-          <TabsTrigger value="daily">Daily</TabsTrigger>
-          <TabsTrigger value="monthly">Monthly</TabsTrigger>
-          <TabsTrigger value="all">All</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList 
+          ref={tabsListRef}
+          className="grid w-full grid-cols-3 bg-secondary relative"
+        >
+          {/* Animated highlight background */}
+          <div style={highlightStyle} />
+          
+          <TabsTrigger 
+            value="daily" 
+            className="relative z-10 data-[state=active]:text-primary-foreground data-[state=inactive]:text-muted-foreground data-[state=active]:bg-transparent data-[state=inactive]:bg-transparent"
+          >
+            Daily
+          </TabsTrigger>
+          <TabsTrigger 
+            value="monthly" 
+            className="relative z-10 data-[state=active]:text-primary-foreground data-[state=inactive]:text-muted-foreground data-[state=active]:bg-transparent data-[state=inactive]:bg-transparent"
+          >
+            Monthly
+          </TabsTrigger>
+          <TabsTrigger 
+            value="all" 
+            className="relative z-10 data-[state=active]:text-primary-foreground data-[state=inactive]:text-muted-foreground data-[state=active]:bg-transparent data-[state=inactive]:bg-transparent"
+          >
+            All
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="daily" className="space-y-6 mt-6">
@@ -414,7 +501,15 @@ export const ReportsScreen = () => {
                 <p className="text-muted-foreground">No transactions yet</p>
               </Card>
              )}
-            {transactions.map(t => (
+            
+            {/* Show transaction count info */}
+            {transactions.length > 0 && (
+              <div className="text-sm text-muted-foreground mb-4">
+                Showing {displayedTransactions.length} of {transactions.length} transactions
+              </div>
+            )}
+            
+            {displayedTransactions.map(t => (
               <Card key={t.id} className="financial-card p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-1 min-w-0" onClick={() => setExpandedTransaction(prev => prev === t.id ? null : t.id)}>
@@ -444,6 +539,19 @@ export const ReportsScreen = () => {
                 </div>
               </Card>
             ))}
+            
+            {/* Load More Button */}
+            {hasMoreTransactions && (
+              <div className="flex justify-center pt-4">
+                <Button 
+                  onClick={loadMoreTransactions}
+                  variant="outline"
+                  className="w-full max-w-xs"
+                >
+                  Load More Transactions ({transactions.length - displayedTransactionsCount} remaining)
+                </Button>
+              </div>
+            )}
           </div>
         </TabsContent>
       </Tabs>

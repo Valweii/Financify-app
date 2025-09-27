@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Plus, FileText, Upload, X } from "lucide-react";
+import { Plus, FileText, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FloatingActionButtonProps {
@@ -11,10 +11,28 @@ interface FloatingActionButtonProps {
 
 export const FloatingActionButton = ({ onImportPDF, onInputTransaction }: FloatingActionButtonProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const fabRef = useRef<HTMLDivElement>(null);
 
   const handleToggle = () => {
     setIsOpen(!isOpen);
   };
+
+  // Handle click outside to close FAB
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (fabRef.current && !fabRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
 
   const handleImportPDF = () => {
     setIsOpen(false);
@@ -27,7 +45,7 @@ export const FloatingActionButton = ({ onImportPDF, onInputTransaction }: Floati
   };
 
   return (
-    <div className="fab-container">
+    <div className="fab-container" ref={fabRef}>
       {/* Action Menu */}
       <div className={cn(
         "absolute bottom-16 right-0 space-y-2 transition-all duration-300 ease-out",
@@ -75,15 +93,11 @@ export const FloatingActionButton = ({ onImportPDF, onInputTransaction }: Floati
           "w-14 h-14 rounded-full shadow-lg transition-all duration-300 ease-out",
           "bg-gradient-to-r from-primary to-primary-light hover:from-primary-light hover:to-primary",
           "hover:scale-105 active:scale-95",
-          isOpen && "rotate-45"
+          isOpen && "rotate-[135deg]"
         )}
         size="icon"
       >
-        {isOpen ? (
-          <X className="w-6 h-6 text-primary-foreground" />
-        ) : (
-          <Plus className="w-6 h-6 text-primary-foreground" />
-        )}
+        <Plus className="w-6 h-6 text-primary-foreground" />
       </Button>
     </div>
   );

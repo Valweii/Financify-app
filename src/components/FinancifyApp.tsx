@@ -23,6 +23,7 @@ export const FinancifyApp = () => {
   const [showImportScreen, setShowImportScreen] = useState(false);
   const [showTransactionDialog, setShowTransactionDialog] = useState(false);
   const [showPDFUpload, setShowPDFUpload] = useState(false);
+  const [splitBillResetFn, setSplitBillResetFn] = useState<(() => void) | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const { 
     user, 
@@ -140,6 +141,13 @@ export const FinancifyApp = () => {
   const handleTabChange = (newTab: NavigationTab) => {
     if (newTab === activeTab || isTransitioning) return;
     
+    // Reset split bill state when navigating away from split screen
+    if (activeTab === "split" && newTab !== "split" && splitBillResetFn) {
+      console.log('🔄 FinancifyApp: Resetting split bill state due to navigation away');
+      console.log('📊 FinancifyApp: Current activeTab:', activeTab, 'newTab:', newTab, 'resetFn exists:', !!splitBillResetFn);
+      splitBillResetFn();
+    }
+    
     setPreviousTab(activeTab);
     setIsTransitioning(true);
     
@@ -230,9 +238,9 @@ export const FinancifyApp = () => {
       case "dashboard":
         return <DashboardScreen onNavigate={handleTabChange} />;
       case "split":
-        return <SplitBillScreen />;
+        return <SplitBillScreen onReset={setSplitBillResetFn} isActive={activeTab === "split"} />;
       case "reports":
-        return <ReportsScreen />;
+        return <ReportsScreen isActive={activeTab === "reports"} />;
       case "settings":
         return <SettingsScreen />;
       default:

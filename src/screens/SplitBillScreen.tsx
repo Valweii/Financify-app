@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,7 @@ type Item = {
   participants: string[]; // person ids
 };
 
-export const SplitBillScreen = () => {
+export const SplitBillScreen = ({ onReset, isActive }: { onReset?: (resetFn: () => void) => void; isActive?: boolean }) => {
   const { createTransaction, user, profile, saveSplitBillHistory, splitBillHistory, loadSplitBillHistory } = useFinancifyStore();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
@@ -45,6 +45,71 @@ export const SplitBillScreen = () => {
 
   const [newPersonName, setNewPersonName] = useState("");
   const [draftItem, setDraftItem] = useState<{ name: string; price_cents: number; participants: string[] }>({ name: "", price_cents: 0, participants: [] });
+
+  // Reset function to reset all state to initial values
+  const resetSplitBillState = useCallback(() => {
+    console.log('🔄 SplitBillScreen: Resetting all state to initial values');
+    setImagePreview(null);
+    setIsOcrLoading(false);
+    setPeople([]);
+    setItems([]);
+    setTaxServicePercent(0);
+    setIsAddPersonOpen(false);
+    setIsAddItemOpen(false);
+    setIsEditItemOpen(false);
+    setEditItemId(null);
+    setEditItemPrice("0");
+    setExpandedPersonId(null);
+    setStep(-1);
+    setShowHistory(false);
+    setAssignPersonId(null);
+    setMyPersonId(null);
+    setMyName("");
+    setIsEditMode(false);
+    setNewPersonName("");
+    setDraftItem({ name: "", price_cents: 0, participants: [] });
+    console.log('✅ SplitBillScreen: State reset complete');
+  }, []);
+
+  // Expose reset function to parent component
+  useEffect(() => {
+    if (onReset) {
+      console.log('📤 SplitBillScreen: Exposing reset function to parent');
+      console.log('📊 SplitBillScreen: onReset function exists:', !!onReset);
+      onReset(resetSplitBillState);
+    }
+  }, [onReset, resetSplitBillState]);
+
+  // Reset state when screen becomes inactive (user navigates away)
+  useEffect(() => {
+    if (isActive === false) {
+      // Check if we have any data that indicates we were in the middle of a flow
+      const hasData = imagePreview || people.length > 0 || items.length > 0;
+      if (hasData) {
+        console.log('🔄 SplitBillScreen: Resetting state when screen becomes inactive');
+        // Use setTimeout to avoid state update during render
+        setTimeout(() => {
+          resetSplitBillState();
+        }, 0);
+      }
+    }
+  }, [isActive, resetSplitBillState]);
+
+  // Reset state when returning to main split page (step -1)
+  // This will only trigger when user manually navigates back to step -1
+  useEffect(() => {
+    if (step === -1) {
+      // Check if we have any data that indicates we were in the middle of a flow
+      const hasData = imagePreview || people.length > 0 || items.length > 0;
+      if (hasData) {
+        console.log('🔄 SplitBillScreen: Resetting state when returning to main page');
+        // Use setTimeout to avoid state update during render
+        setTimeout(() => {
+          resetSplitBillState();
+        }, 0);
+      }
+    }
+  }, [step, resetSplitBillState]);
 
   const parseCurrencyToCents = (raw: string): number => {
     // Normalize Indonesian/US formats: remove currency, spaces, dots as thousand sep, commas as decimal
@@ -298,15 +363,24 @@ export const SplitBillScreen = () => {
         <Card className="financial-card p-4 h-[65vh] flex flex-col">
           <div className="flex-1 flex flex-col items-center justify-center">
             {isOcrLoading ? (
-              <div className="flex flex-col items-center justify-center space-y-4">
-                <div className="relative">
-                  <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-                  <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-r-primary/40 rounded-full animate-pulse"></div>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-medium text-primary">Processing receipt...</p>
-                  <p className="text-sm text-muted-foreground">Detecting items automatically</p>
-                </div>
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+                <Card className="financial-card p-8 max-w-sm mx-4">
+                  <div className="flex flex-col items-center justify-center space-y-6">
+                    <div className="relative">
+                      <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                      <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-r-primary/40 rounded-full animate-pulse"></div>
+                    </div>
+                    <div className="text-center space-y-2">
+                      <p className="text-lg font-semibold text-primary">Processing Receipt</p>
+                      <p className="text-sm text-muted-foreground">Detecting items automatically...</p>
+                      <div className="flex items-center justify-center space-x-1 mt-3">
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
               </div>
             ) : (
               <>
@@ -629,7 +703,7 @@ export const SplitBillScreen = () => {
       {/* Navigation */}
       {step >= 0 && (
         <div className="flex items-center justify-between">
-          <Button variant="outline" onClick={() => setStep(prev => (prev > 0 ? ((prev - 1) as any) : -1))} disabled={step === 0}>Back</Button>
+          <Button variant="outline" onClick={() => setStep(prev => (prev > 0 ? ((prev - 1) as any) : -1))} disabled={false}>Back</Button>
         <div className="flex items-center gap-2">
           {step < 3 && (
             <Button
