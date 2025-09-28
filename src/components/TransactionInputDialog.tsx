@@ -5,9 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { MoneyDisplay } from "./MoneyDisplay";
 import { useFinancifyStore } from "@/store";
 import { toast } from "@/components/ui/use-toast";
+import { DollarSign, FileText, Calendar, Tag } from "lucide-react";
 
 interface TransactionInputDialogProps {
   isOpen: boolean;
@@ -26,6 +28,20 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Category options with icons
+  const categoryOptions = [
+    { value: "Income", label: "Income", icon: "💰" },
+    { value: "Food & Dining", label: "Food & Dining", icon: "🍽️" },
+    { value: "Transportation", label: "Transportation", icon: "🚗" },
+    { value: "Shopping", label: "Shopping", icon: "🛍️" },
+    { value: "Entertainment", label: "Entertainment", icon: "🎬" },
+    { value: "Bills & Utilities", label: "Bills & Utilities", icon: "⚡" },
+    { value: "Healthcare", label: "Healthcare", icon: "🏥" },
+    { value: "Education", label: "Education", icon: "📚" },
+    { value: "Travel", label: "Travel", icon: "✈️" },
+    { value: "Other", label: "Other", icon: "📦" }
+  ];
 
   // Detect mobile device and keyboard
   useEffect(() => {
@@ -127,23 +143,23 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
         
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="description">Description *</Label>
+          <div className="relative">
+            <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
               id="description"
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Enter transaction description"
+              placeholder="Enter description"
               required
-              className="rounded-2xl h-12 text-base"
+              className="pl-10 rounded-2xl h-12 text-base"
               autoComplete="off"
             />
           </div>
 
           {/* Amount and Type */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="amount">Amount *</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input
                 id="amount"
                 type="number"
@@ -152,70 +168,75 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
                 onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
                 placeholder="0.00"
                 required
-                className="rounded-2xl h-12 text-base"
+                className="pl-10 rounded-2xl h-12 text-base"
                 inputMode="decimal"
               />
             </div>
+            <ToggleGroup
+              type="single"
+              value={formData.type}
+              onValueChange={(value: 'credit' | 'debit') => value && setFormData(prev => ({ ...prev, type: value }))}
+              className="justify-stretch"
+            >
+              <ToggleGroupItem value="credit" className="flex-1 rounded-2xl h-12 data-[state=on]:bg-green-500 data-[state=on]:text-white">
+                Income
+              </ToggleGroupItem>
+              <ToggleGroupItem value="debit" className="flex-1 rounded-2xl h-12 data-[state=on]:bg-red-500 data-[state=on]:text-white">
+                Expense
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+
+          {/* Category and Date - Inline */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Category */}
             <div className="space-y-2">
-              <Label htmlFor="type">Type *</Label>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Tag className="w-4 h-4" />
+                Category
+              </div>
               <Select
-                value={formData.type}
-                onValueChange={(value: 'credit' | 'debit') => setFormData(prev => ({ ...prev, type: value }))}
+                value={formData.category}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
               >
                 <SelectTrigger className="rounded-2xl h-12">
-                  <SelectValue />
+                  <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="credit">Income</SelectItem>
-                  <SelectItem value="debit">Expense</SelectItem>
+                  {categoryOptions.map((category) => (
+                    <SelectItem key={category.value} value={category.value}>
+                      <div className="flex items-center gap-2">
+                        <span>{category.icon}</span>
+                        <span>{category.label}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          {/* Category */}
-          <div className="space-y-2">
-            <Label htmlFor="category">Category *</Label>
-            <Select
-              value={formData.category}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
-            >
-              <SelectTrigger className="rounded-2xl h-12">
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Food & Dining">Food & Dining</SelectItem>
-                <SelectItem value="Transportation">Transportation</SelectItem>
-                <SelectItem value="Shopping">Shopping</SelectItem>
-                <SelectItem value="Entertainment">Entertainment</SelectItem>
-                <SelectItem value="Bills & Utilities">Bills & Utilities</SelectItem>
-                <SelectItem value="Healthcare">Healthcare</SelectItem>
-                <SelectItem value="Education">Education</SelectItem>
-                <SelectItem value="Travel">Travel</SelectItem>
-                <SelectItem value="Other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Date */}
-          <div className="space-y-2">
-            <Label htmlFor="date">Date</Label>
-            <Input
-              id="date"
-              type="date"
-              value={formData.date}
-              onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-              required
-              className="rounded-2xl h-12 text-base"
-            />
+            {/* Date */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Calendar className="w-4 h-4" />
+                Date
+              </div>
+              <Input
+                id="date"
+                type="date"
+                value={formData.date}
+                onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                required
+                className="rounded-2xl h-12 text-base"
+              />
+            </div>
           </div>
 
           {/* Preview */}
           {formData.amount && (
-            <Card className="p-4 bg-muted/50 rounded-2xl border-0 shadow-sm">
-              <div className="text-sm text-muted-foreground mb-2">Preview:</div>
+            <Card className="p-3 bg-muted/50 rounded-2xl border-0 shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="font-medium">{formData.description || 'Transaction'}</span>
+                <span className="font-medium text-sm">{formData.description || 'Transaction'}</span>
                 <MoneyDisplay 
                   amount={formData.type === 'credit' ? parseFloat(formData.amount) : -parseFloat(formData.amount)}
                   showSign
@@ -226,7 +247,7 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
           )}
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4 pb-2">
+          <div className="flex gap-3 pt-2">
             <Button
               type="button"
               variant="outline"
@@ -241,7 +262,7 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
               disabled={isSubmitting}
               className="flex-1 rounded-2xl h-12 font-semibold bg-primary hover:bg-primary/90"
             >
-              {isSubmitting ? 'Adding...' : 'Add Transaction'}
+              {isSubmitting ? 'Adding...' : 'Add'}
             </Button>
           </div>
         </form>

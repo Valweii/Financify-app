@@ -74,23 +74,6 @@ export const FloatingActionButton = ({ onInputTransaction }: FloatingActionButto
           </Button>
         </Card>
 
-        {/* Split Bill Option */}
-        <Card className="financial-card p-3 shadow-lg">
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 h-auto p-3"
-            onClick={handleSplitBill}
-          >
-            <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
-              <Users className="w-4 h-4 text-primary" />
-            </div>
-            <div className="text-left">
-              <div className="font-medium">Split Bill Now</div>
-              <div className="text-xs text-muted-foreground">Create new split</div>
-            </div>
-          </Button>
-        </Card>
-
         {/* Input Transaction Option */}
         <Card className="financial-card p-3 shadow-lg">
           <Button

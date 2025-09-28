@@ -1,15 +1,21 @@
 import { SplitBillScreen } from "@/screens/SplitBillScreen";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const SplitBillPage = () => {
   const navigate = useNavigate();
   const [splitBillResetFn, setSplitBillResetFn] = useState<(() => void) | null>(null);
+  const [startFlow, setStartFlow] = useState(false);
 
   const handleClose = () => {
     navigate(-1); // Go back to previous page
   };
+
+  // Start the flow immediately when component mounts
+  useEffect(() => {
+    setStartFlow(true);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -31,6 +37,7 @@ const SplitBillPage = () => {
             onReset={setSplitBillResetFn} 
             isActive={true}
             onNavigate={handleClose}
+            startAtStep={startFlow ? 0 : -1}
           />
         </div>
       </div>

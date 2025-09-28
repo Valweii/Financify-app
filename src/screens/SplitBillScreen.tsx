@@ -11,6 +11,7 @@ import { SplitBillHistoryScreen } from "./SplitBillHistoryScreen";
 import { toast } from "@/components/ui/use-toast";
 import { parseReceiptImage } from "@/lib/receipt-ocr";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useNavigate } from "react-router-dom";
 
 // Local types for split bill
 type Person = { id: string; name: string };
@@ -22,8 +23,9 @@ type Item = {
   participants: string[]; // person ids
 };
 
-export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (resetFn: () => void) => void; isActive?: boolean; onNavigate?: () => void }) => {
+export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -1 }: { onReset?: (resetFn: () => void) => void; isActive?: boolean; onNavigate?: () => void; startAtStep?: number }) => {
   const { createTransaction, user, profile, saveSplitBillHistory, splitBillHistory, loadSplitBillHistory } = useFinancifyStore();
+  const navigate = useNavigate();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
@@ -36,93 +38,242 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [editItemPrice, setEditItemPrice] = useState<string>("0");
   const [expandedPersonId, setExpandedPersonId] = useState<string | null>(null);
-  const [step, setStep] = useState<-1 | 0 | 1 | 2 | 3>(-1);
-  const [showHistory, setShowHistory] = useState(false);
+  const [step, setStep] = useState<-1 | 0 | 1 | 2 | 3>(startAtStep as -1 | 0 | 1 | 2 | 3);
   const [assignPersonId, setAssignPersonId] = useState<string | null>(null);
+  
   const [myPersonId, setMyPersonId] = useState<string | null>(null);
   const [myName, setMyName] = useState<string>("");
   const [isEditMode, setIsEditMode] = useState<boolean>(false);
   const [isExitingEditMode, setIsExitingEditMode] = useState<boolean>(false);
-  const [isAnimating, setIsAnimating] = useState<boolean>(false);
-  const [animationDirection, setAnimationDirection] = useState<'enter' | 'exit' | null>(null);
+  const [microInteractionInProgress, setMicroInteractionInProgress] = useState<boolean>(false);
+  const [showEditIcons, setShowEditIcons] = useState<boolean>(false);
+  const [animationKey, setAnimationKey] = useState<number>(0);
+  const [progressAnimation, setProgressAnimation] = useState<'forward' | 'backward' | null>(null);
+  const [progressFrom, setProgressFrom] = useState<number>(0);
+  const [progressTo, setProgressTo] = useState<number>(0);
+
+  // Calculate progress percentage based on step
+  const getProgressPercentage = (step: number) => {
+    switch (step) {
+      case 0: return 25;
+      case 1: return 50;
+      case 2: return 75;
+      case 3: return 100;
+      default: return 0;
+    }
+  };
+
+  // Animate progress bar
+  const animateProgressBar = (fromStep: number, toStep: number) => {
+    const fromPercentage = getProgressPercentage(fromStep);
+    const toPercentage = getProgressPercentage(toStep);
+    
+    setProgressFrom(fromPercentage);
+    setProgressTo(toPercentage);
+    setProgressAnimation(toStep > fromStep ? 'forward' : 'backward');
+    
+    // Reset animation after it completes
+    setTimeout(() => {
+      setProgressAnimation(null);
+    }, 600);
+  };
+
+  // Handle step change with progress animation
+  const handleStepChange = (newStep: -1 | 0 | 1 | 2 | 3) => {
+    if (newStep !== step) {
+      animateProgressBar(step, newStep);
+      setStep(newStep);
+    }
+  };
 
   // Handle edit mode toggle with exit animation
   const handleEditModeToggle = () => {
     if (isEditMode) {
       // Exiting edit mode - start exit animation
       setIsExitingEditMode(true);
+      setAnimationKey(prev => prev + 1); // Force re-render
+      
+      // Don't hide icons immediately - let animation complete
       setTimeout(() => {
         setIsEditMode(false);
         setIsExitingEditMode(false);
-      }, 300); // Match animation duration
+        setShowEditIcons(false);
+      }, 500); // Give more time for animations to complete
     } else {
       // Entering edit mode
       setIsEditMode(true);
+      setShowEditIcons(true);
+      setAnimationKey(prev => prev + 1); // Force re-render
     }
   };
 
-  // Handle swipe animations
-  const handleStartSplitBill = () => {
-    if (isAnimating) return; // Prevent multiple animations
-    setIsAnimating(true);
-    setAnimationDirection('exit');
+  // Add CSS animations for edit mode
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideInFromRight {
+        from {
+          transform: translateX(16px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+      
+      @keyframes slideOutToRight {
+        from {
+          transform: translateX(0);
+          opacity: 1;
+        }
+        to {
+          transform: translateX(16px);
+          opacity: 0;
+        }
+      }
+      
+      @keyframes fadeInScale {
+        from {
+          transform: scale(0.8);
+          opacity: 0;
+        }
+        to {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+      
+      @keyframes fadeOutScale {
+        from {
+          transform: scale(1);
+          opacity: 1;
+        }
+        to {
+          transform: scale(0.8);
+          opacity: 0;
+        }
+      }
+      
+      .edit-icon-enter {
+        animation: slideInFromRight 0.4s ease-out forwards;
+      }
+      
+      .edit-icon-exit {
+        animation: slideOutToRight 0.4s ease-in forwards;
+      }
+      
+      .delete-icon-enter {
+        animation: fadeInScale 0.4s ease-out forwards;
+      }
+      
+      .delete-icon-exit {
+        animation: fadeOutScale 0.4s ease-in forwards;
+      }
+      
+      .edit-icon-hover {
+        transform: scale(1.1) rotate(12deg) !important;
+      }
+      
+      .delete-icon-press {
+        transform: scale(0.8) !important;
+        background-color: rgba(239, 68, 68, 0.1) !important;
+      }
+      
+      /* Progress bar animations */
+      .progress-bar-fill {
+        transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        transform-origin: left;
+      }
+      
+      .progress-bar-fill-forward {
+        animation: progressFillForward 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards, progressGlow 0.6s ease-in-out forwards;
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.4), 0 0 16px rgba(34, 197, 94, 0.2);
+      }
+      
+      .progress-bar-fill-backward {
+        animation: progressFillBackward 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards, progressGlow 0.6s ease-in-out forwards;
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.4), 0 0 16px rgba(34, 197, 94, 0.2);
+      }
+      
+      @keyframes progressFillForward {
+        from {
+          width: var(--progress-from);
+        }
+        to {
+          width: var(--progress-to);
+        }
+      }
+      
+      @keyframes progressFillBackward {
+        from {
+          width: var(--progress-from);
+        }
+        to {
+          width: var(--progress-to);
+        }
+      }
+      
+      @keyframes progressGlow {
+        0% {
+          box-shadow: 0 0 4px rgba(34, 197, 94, 0.2), 0 0 8px rgba(34, 197, 94, 0.1);
+        }
+        50% {
+          box-shadow: 0 0 12px rgba(34, 197, 94, 0.6), 0 0 24px rgba(34, 197, 94, 0.3);
+        }
+        100% {
+          box-shadow: 0 0 8px rgba(34, 197, 94, 0.4), 0 0 16px rgba(34, 197, 94, 0.2);
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
+  // Force animation trigger
+  useEffect(() => {
+    if (isExitingEditMode) {
+      // Small delay to ensure DOM is updated
     setTimeout(() => {
-      setStep(0);
-      // Use requestAnimationFrame to ensure DOM update before applying enter animation
-      requestAnimationFrame(() => {
-        setAnimationDirection('enter');
+        // Find all edit and delete buttons that should have exit animations
+        const editButtons = document.querySelectorAll('button[aria-label="Edit price"]');
+        const deleteButtons = document.querySelectorAll('button[aria-label="Delete item"]');
+        
+        editButtons.forEach(btn => {
+          // Remove any existing animation classes and force exit animation
+          btn.classList.remove('edit-icon-enter', 'edit-icon-exit');
         setTimeout(() => {
-          setIsAnimating(false);
-          setAnimationDirection(null);
-        }, 300); // Match CSS animation duration exactly
-      });
-    }, 300); // Match CSS animation duration exactly
+            btn.classList.add('edit-icon-exit');
+          }, 10);
+        });
+        
+        deleteButtons.forEach(btn => {
+          // Remove any existing animation classes and force exit animation
+          btn.classList.remove('delete-icon-enter', 'delete-icon-exit');
+    setTimeout(() => {
+            btn.classList.add('delete-icon-exit');
+          }, 10);
+        });
+      }, 50);
+    }
+  }, [isExitingEditMode]);
+
+  // Handle navigation to split bill page
+  const handleStartSplitBill = () => {
+    navigate('/split-bill');
   };
 
   const handleViewHistory = () => {
-    if (isAnimating) return; // Prevent multiple animations
-    setIsAnimating(true);
-    setAnimationDirection('exit');
-    setTimeout(() => {
-      setShowHistory(true);
-      // Use requestAnimationFrame to ensure DOM update before applying enter animation
-      requestAnimationFrame(() => {
-        setAnimationDirection('enter');
-        setTimeout(() => {
-          setIsAnimating(false);
-          setAnimationDirection(null);
-        }, 300); // Match CSS animation duration exactly
-      });
-    }, 300); // Match CSS animation duration exactly
+    navigate('/active-split-bills');
   };
 
-  const handleBackFromHistory = () => {
-    if (isAnimating) return; // Prevent multiple animations
-    setIsAnimating(true);
-    setAnimationDirection('exit');
-    setTimeout(() => {
-      setShowHistory(false);
-      // Use requestAnimationFrame to ensure DOM update before applying enter animation
-      requestAnimationFrame(() => {
-        setAnimationDirection('enter');
-        setTimeout(() => {
-          setIsAnimating(false);
-          setAnimationDirection(null);
-        }, 300); // Match CSS animation duration exactly
-      });
-    }, 300); // Match CSS animation duration exactly
-  };
 
   const [newPersonName, setNewPersonName] = useState("");
   const [draftItem, setDraftItem] = useState<{ name: string; price_cents: number; participants: string[] }>({ name: "", price_cents: 0, participants: [] });
 
-  // Cleanup animation state on unmount
-  useEffect(() => {
-    return () => {
-      setIsAnimating(false);
-      setAnimationDirection(null);
-    };
-  }, []);
 
   // Auto-add current user when entering step 1
   useEffect(() => {
@@ -157,15 +308,14 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
     setEditItemId(null);
     setEditItemPrice("0");
     setExpandedPersonId(null);
-    setStep(-1);
-    setShowHistory(false);
+    handleStepChange(startAtStep as -1 | 0 | 1 | 2 | 3);
     setAssignPersonId(null);
     setMyPersonId(null);
     setMyName("");
     setIsEditMode(false);
     setNewPersonName("");
     setDraftItem({ name: "", price_cents: 0, participants: [] });
-  }, []);
+  }, [startAtStep]);
 
   // Expose reset function to parent component
   useEffect(() => {
@@ -419,13 +569,19 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
 
       {step === -1 && (
         <div className="space-y-6">
-          {showHistory ? (
-            <div className={`${isAnimating && animationDirection === 'exit' ? 'history-swipe-exit' : 'history-swipe-enter'}`}>
-              <SplitBillHistoryScreen onBack={handleBackFromHistory} />
-            </div>
-          ) : (
-            <div className={`flex flex-col gap-4 ${isAnimating && animationDirection === 'exit' ? 'split-swipe-exit' : 'split-swipe-enter'}`}>
-              <Card className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={handleStartSplitBill}>
+          <div className="flex flex-col gap-4">
+            <Card 
+              className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" 
+              onClick={handleStartSplitBill}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleStartSplitBill();
+                }
+              }}
+            >
                 <div className="flex items-center space-x-4">
                   <div className="p-3 bg-primary/10 rounded-lg">
                     <Receipt className="w-8 h-8 text-primary" />
@@ -437,7 +593,18 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
                 </div>
               </Card>
               
-              <Card className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={onNavigate || handleViewHistory}>
+            <Card 
+              className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" 
+              onClick={handleViewHistory}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleViewHistory();
+                }
+              }}
+            >
                 <div className="flex items-center space-x-4">
                   <div className="p-3 bg-primary/10 rounded-lg">
                     <History className="w-8 h-8 text-primary" />
@@ -449,13 +616,47 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
                 </div>
               </Card>
             </div>
-          )}
         </div>
       )}
 
       {step === 0 && (
-        <Card className={`financial-card p-4 h-[65vh] flex flex-col ${isAnimating && animationDirection === 'enter' ? 'split-swipe-enter' : isAnimating && animationDirection === 'exit' ? 'split-swipe-exit' : ''}`}>
-          <div className="flex-1 flex flex-col items-center justify-center">
+        <div className="space-y-6">
+          {/* Header with back button and progress */}
+          <div className="flex items-center justify-between">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => onNavigate ? onNavigate() : handleStepChange(-1)}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+            <div className="flex-1 mx-4">
+              <div className="w-full bg-secondary rounded-full h-2">
+                <div 
+                  className={`bg-primary h-2 rounded-full progress-bar-fill ${
+                    progressAnimation === 'forward' ? 'progress-bar-fill-forward' : 
+                    progressAnimation === 'backward' ? 'progress-bar-fill-backward' : ''
+                  }`}
+                  style={{ 
+                    width: progressAnimation ? 'var(--progress-to)' : '25%',
+                    '--progress-from': `${progressFrom}%`,
+                    '--progress-to': `${progressTo}%`
+                  } as React.CSSProperties}
+                ></div>
+              </div>
+              <p className="text-xs text-muted-foreground text-center mt-1">Step 1 of 4</p>
+            </div>
+            <div className="w-16"></div> {/* Spacer for balance */}
+          </div>
+
+          {/* Main content */}
+          <div className="space-y-6">
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-bold">Upload Your Receipt</h2>
+              <p className="text-muted-foreground">Take a photo or choose from gallery</p>
+            </div>
             {isOcrLoading ? (
               <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center pointer-events-auto">
                 <Card className="financial-card p-8 max-w-sm mx-4">
@@ -479,15 +680,16 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
             ) : (
               <>
                 {imagePreview ? (
-                  <div className="flex-1 w-full">
+                  <div className="space-y-4">
                     {/* After upload, show editable item summary before continue */}
-                    <h3 className="text-responsive-lg font-semibold mb-3">Detected Items</h3>
-                    <div className="space-y-2 max-h-[48vh] overflow-y-auto">
+                    <div className="bg-muted/30 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold mb-3">Detected Items</h3>
+                      <div className="space-y-2 max-h-[40vh] overflow-y-auto">
                       {items.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No items detected yet. You can add them manually in the next step.</p>
                       ) : (
                         items.map(it => (
-                          <div key={it.id} className="p-3 rounded-lg border border-border/50 flex items-center justify-between">
+                            <div key={it.id} className="p-3 rounded-lg border border-border/50 flex items-center justify-between bg-background">
                             <div className="min-w-0">
                               <p className="font-medium truncate">{it.name}</p>
                             </div>
@@ -516,25 +718,107 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
                         ))
                       )}
                     </div>
-                    <div className="mt-4 flex justify-end">
+                    </div>
+                    
+                    {/* Action buttons */}
+                    <div className="space-y-3">
+                      <Button 
+                        onClick={() => handleStepChange(1)}
+                        className="w-full btn-primary"
+                        disabled={items.length === 0}
+                      >
+                        Continue to People
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </Button>
+                      <Button 
+                        onClick={() => handleStepChange(1)}
+                        variant="outline"
+                        className="w-full"
+                        disabled={items.length === 0}
+                      >
+                        Enter items manually instead
+                      </Button>
               </div>
             </div>
                 ) : (
-                  <label className="btn-primary inline-flex items-center justify-center rounded-md px-5 py-3 cursor-pointer disabled:opacity-70">
+                  <div className="space-y-6">
+                    {/* Upload area */}
+                    <div className="border-2 border-dashed border-primary/30 rounded-xl p-8 bg-primary/5 hover:bg-primary/10 transition-colors">
+                      <div className="text-center space-y-4">
+                        <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                          <Receipt className="w-8 h-8 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold">Choose Receipt</h3>
+                          <p className="text-sm text-muted-foreground">Upload a photo or PDF of your receipt</p>
+                        </div>
+                        <label className="btn-primary w-full inline-flex items-center justify-center rounded-md px-6 py-3 cursor-pointer hover:opacity-90 transition-opacity">
               <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && e.target.files[0] && handleImageUpload(e.target.files[0])} />
-                    Upload
+                          Choose Receipt
             </label>
+                      </div>
+                    </div>
+                    
+                    {/* Skip option */}
+                    <div className="text-center">
+                      <Button 
+                        onClick={() => handleStepChange(1)}
+                        variant="ghost"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        Enter items manually instead
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </>
             )}
           </div>
-        </Card>
+        </div>
       )}
 
       {step === 1 && (
-        <Card className="financial-card p-4 h-[65vh] flex flex-col">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold">Add people</h3>
+        <div className="space-y-6">
+          {/* Header with back button and progress */}
+          <div className="flex items-center justify-between">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => handleStepChange(0)}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+            <div className="flex-1 mx-4">
+              <div className="w-full bg-secondary rounded-full h-2">
+                <div 
+                  className={`bg-primary h-2 rounded-full progress-bar-fill ${
+                    progressAnimation === 'forward' ? 'progress-bar-fill-forward' : 
+                    progressAnimation === 'backward' ? 'progress-bar-fill-backward' : ''
+                  }`}
+                  style={{ 
+                    width: progressAnimation ? 'var(--progress-to)' : '50%',
+                    '--progress-from': `${progressFrom}%`,
+                    '--progress-to': `${progressTo}%`
+                  } as React.CSSProperties}
+                ></div>
+              </div>
+              <p className="text-xs text-muted-foreground text-center mt-1">Step 2 of 4</p>
+            </div>
+            <div className="w-16"></div> {/* Spacer for balance */}
+          </div>
+
+          {/* Main content */}
+          <div className="space-y-6">
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-bold">Add People</h2>
+              <p className="text-muted-foreground">Who's splitting this bill?</p>
+            </div>
+
+            <Card className="financial-card p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">People</h3>
             <Dialog open={isAddPersonOpen} onOpenChange={setIsAddPersonOpen}>
               <DialogTrigger asChild>
                 <Button size="sm" className="btn-primary"><Plus className="w-4 h-4 mr-1" /> Add Person</Button>
@@ -555,12 +839,12 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
               </DialogContent>
             </Dialog>
           </div>
-          <div className="flex-1 space-y-2 overflow-y-auto">
+              <div className="space-y-2 max-h-[40vh] overflow-y-auto">
             {people.length === 0 && (
-              <p className="text-sm text-muted-foreground">No people added yet</p>
+                  <p className="text-sm text-muted-foreground text-center py-4">No people added yet</p>
             )}
             {people.map(p => (
-              <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50">
+                  <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-background">
                 <div className="flex items-center gap-2 min-w-0 cursor-pointer" onClick={() => setExpandedPersonId(prev => prev === p.id ? null : p.id)}>
                   <ChevronDown className={`w-4 h-4 transition-transform ${expandedPersonId === p.id ? 'rotate-180' : ''}`} />
                   <span className="font-medium truncate">{p.name}</span>
@@ -575,20 +859,80 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
             ))}
           </div>
         </Card>
+
+            {/* Continue button */}
+            <Button 
+              onClick={() => handleStepChange(2)}
+              className="w-full btn-primary"
+              disabled={people.length === 0}
+            >
+              Continue to Items
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
+        </div>
       )}
 
       {step === 2 && (
-        <Card className="financial-card p-4 h-[65vh] flex flex-col">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className={`text-lg font-semibold transition-opacity duration-200 ${isEditMode ? 'screen-dim' : ''} ${!isEditMode && !isExitingEditMode ? 'screen-brighten' : ''}`}>Assign items</h3>
+        <div className="space-y-6">
+          {/* Header with back button and progress */}
+          <div className="flex items-center justify-between">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => handleStepChange(1)}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+            <div className="flex-1 mx-4">
+              <div className="w-full bg-secondary rounded-full h-2">
+                <div 
+                  className={`bg-primary h-2 rounded-full progress-bar-fill ${
+                    progressAnimation === 'forward' ? 'progress-bar-fill-forward' : 
+                    progressAnimation === 'backward' ? 'progress-bar-fill-backward' : ''
+                  }`}
+                  style={{ 
+                    width: progressAnimation ? 'var(--progress-to)' : '75%',
+                    '--progress-from': `${progressFrom}%`,
+                    '--progress-to': `${progressTo}%`
+                  } as React.CSSProperties}
+                ></div>
+              </div>
+              <p className="text-xs text-muted-foreground text-center mt-1">Step 3 of 4</p>
+            </div>
+            <div className="w-16"></div> {/* Spacer for balance */}
+          </div>
+
+          {/* Main content */}
+          <div className="space-y-6">
+            <div className="text-center space-y-2">
+              <h2 className={`text-2xl font-bold transition-opacity duration-300 ease-in-out ${
+                isEditMode ? 'opacity-90' : isExitingEditMode ? 'opacity-90' : 'opacity-100'
+              }`}>Assign Items</h2>
+              <p className="text-muted-foreground">Who's paying for what?</p>
+            </div>
+
+            <Card className="financial-card p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Items</h3>
             <div className="flex gap-2">
               <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={handleEditModeToggle}
-                className={`edit-mode-button ${isEditMode ? 'active' : ''} ${isExitingEditMode ? 'exiting' : ''}`}
-              >
+                    className={`transition-all duration-300 ease-in-out ${
+                      isEditMode 
+                        ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' 
+                        : isExitingEditMode
+                        ? 'bg-green-50 border-green-200 text-green-700'
+                        : 'hover:bg-accent'
+                    }`}
+                  >
+                    <span className="transition-opacity duration-300 ease-in-out">
                 {isEditMode ? 'Done Editing' : 'Edit Mode'}
+                    </span>
               </Button>
             <Dialog open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
               <DialogTrigger asChild>
@@ -665,7 +1009,7 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
             )}
             {items.map((it, index) => {
               const isSelected = Boolean(assignPersonId && it.participants.includes(assignPersonId));
-              const animationDelay = isEditMode ? `${index * 40}ms` : '0ms';
+              const animationDelay = isEditMode ? `${index * 40}ms` : isExitingEditMode ? `${index * 40}ms` : '0ms';
               return (
                 <div
                   key={it.id}
@@ -709,38 +1053,81 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
                       <div className="w-24 text-right">
                         <MoneyDisplay amount={it.price_cents} size="md" animate={false} />
                       </div>
-                      {(isEditMode || isExitingEditMode) && (
+                      {showEditIcons && (
                       <Button
+                        key={`edit-${it.id}-${animationKey}`}
                         variant="ghost"
                         size="icon"
-                        onClick={(e) => { e.stopPropagation(); setEditItemId(it.id); setEditItemPrice(String(it.price_cents)); setIsEditItemOpen(true); }}
-                        className={`${isExitingEditMode ? 'edit-icon-exit' : 'edit-icon-enter'} hover:text-foreground ${isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}
-                        style={{ animationDelay }}
+                        onClick={(e) => { 
+                          if (!isExitingEditMode || microInteractionInProgress) {
+                            e.stopPropagation(); 
+                            setMicroInteractionInProgress(true);
+                            setEditItemId(it.id); 
+                            setEditItemPrice(String(it.price_cents)); 
+                            setIsEditItemOpen(true);
+                            setTimeout(() => setMicroInteractionInProgress(false), 200);
+                          }
+                        }}
+                        className={`hover:text-foreground transition-all duration-300 ${
+                          isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'
+                        } ${
+                          isEditMode ? 'edit-icon-enter' : isExitingEditMode ? 'edit-icon-exit' : ''
+                        }`}
+                        style={{ 
+                          animationDelay: animationDelay
+                        }}
                         aria-label="Edit price"
                         onMouseEnter={(e) => {
-                          if (!isExitingEditMode) {
+                          if (isEditMode) {
                             e.currentTarget.classList.add('edit-icon-hover');
-                            setTimeout(() => e.currentTarget.classList.remove('edit-icon-hover'), 300);
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (isEditMode) {
+                            e.currentTarget.classList.remove('edit-icon-hover');
                           }
                         }}
                       >
                         <Pencil className="w-4 h-4" />
                       </Button>
                       )}
-                      {(isEditMode || isExitingEditMode) && (
+                      {showEditIcons && (
                       <Button
+                        key={`delete-${it.id}-${animationKey}`}
                         variant="ghost"
                         size="icon"
                         onClick={(e) => { 
-                          if (!isExitingEditMode) {
+                          if (!isExitingEditMode || microInteractionInProgress) {
                             e.stopPropagation(); 
+                            // Add ripple effect
+                            setMicroInteractionInProgress(true);
                             e.currentTarget.classList.add('delete-icon-press');
-                            setTimeout(() => e.currentTarget.classList.remove('delete-icon-press'), 300);
+                            setTimeout(() => {
+                              e.currentTarget.classList.remove('delete-icon-press');
+                              setMicroInteractionInProgress(false);
+                            }, 150);
                             removeItem(it.id); 
                           }
                         }}
-                        className={`${isExitingEditMode ? 'delete-icon-exit' : 'delete-icon-enter'} hover:text-destructive ${isSelected ? 'text-primary-foreground/80' : 'text-destructive'}`}
-                        style={{ animationDelay }}
+                        className={`hover:text-destructive transition-all duration-300 ${
+                          isSelected ? 'text-primary-foreground/80' : 'text-destructive'
+                        } ${
+                          isEditMode ? 'delete-icon-enter' : isExitingEditMode ? 'delete-icon-exit' : ''
+                        }`}
+                        style={{ 
+                          animationDelay: animationDelay
+                        }}
+                        onMouseEnter={(e) => {
+                          if (isEditMode) {
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (isEditMode) {
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }
+                        }}
+                        aria-label="Delete item"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -752,12 +1139,60 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
             })}
           </div>
         </Card>
+
+            {/* Continue button */}
+            <Button 
+              onClick={() => handleStepChange(3)}
+              className="w-full btn-primary"
+              disabled={!allItemsHaveParticipants}
+            >
+              Continue to Summary
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
+        </div>
       )}
 
       {step === 3 && (
+        <div className="space-y-6">
+          {/* Header with back button and progress */}
+          <div className="flex items-center justify-between">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => handleStepChange(2)}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+            <div className="flex-1 mx-4">
+              <div className="w-full bg-secondary rounded-full h-2">
+                <div 
+                  className={`bg-primary h-2 rounded-full progress-bar-fill ${
+                    progressAnimation === 'forward' ? 'progress-bar-fill-forward' : 
+                    progressAnimation === 'backward' ? 'progress-bar-fill-backward' : ''
+                  }`}
+                  style={{ 
+                    width: progressAnimation ? 'var(--progress-to)' : '100%',
+                    '--progress-from': `${progressFrom}%`,
+                    '--progress-to': `${progressTo}%`
+                  } as React.CSSProperties}
+                ></div>
+              </div>
+              <p className="text-xs text-muted-foreground text-center mt-1">Step 4 of 4</p>
+            </div>
+            <div className="w-16"></div> {/* Spacer for balance */}
+          </div>
+
+          {/* Main content */}
+          <div className="space-y-6">
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-bold">Summary</h2>
+              <p className="text-muted-foreground">Review and complete your split bill</p>
+            </div>
+
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold">Summary</h3>
-          <div className="space-y-3">
             {people.map(p => {
               const details = personTotals[p.id];
               return (
@@ -813,58 +1248,10 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
               );
             })}
           </div>
-        </div>
-      )}
 
-      {/* Navigation */}
-      {step >= 0 && (
-        <div className="flex items-center justify-between w-full px-0 py-2">
+            {/* Complete button */}
           <Button 
-            variant="outline" 
-            onClick={() => setStep(prev => (prev > 0 ? ((prev - 1) as any) : -1))} 
-            disabled={false}
-            className="flex items-center gap-2 px-4 py-2"
-          >
-            <ArrowLeft className="w-4 h-4" /> 
-            Back
-          </Button>
-          
-          <div className="flex items-center">
-            {step < 3 && (
-              <Button
-                className="btn-primary px-4 py-2"
-                onClick={() => {
-                  // Auto-add current user when proceeding from step 1 to step 2
-                  if (step === 1) {
-                    const defaultName = (profile?.full_name || user?.email?.split('@')[0] || '').trim();
-                    if (defaultName) {
-                      // Check if user already exists by name or if myPersonId is stale
-                      const existingUser = people.find(p => p.name === defaultName);
-                      const isMyPersonIdValid = myPersonId && people.some(p => p.id === myPersonId);
-                      
-                      // Add user if they don't exist or if myPersonId is invalid
-                      if (!existingUser || !isMyPersonIdValid) {
-                        const newPerson = { id: crypto.randomUUID(), name: defaultName };
-                        setPeople(prev => [...prev, newPerson]);
-                        setMyPersonId(newPerson.id);
-                        setMyName(defaultName);
-                      }
-                    }
-                  }
-                  setStep(prev => (prev + 1) as any);
-                }}
-                disabled={
-                  (step === 1 && !canProceedFromPeople) ||
-                  (step === 2 && !allItemsHaveParticipants)
-                }
-              >
-                Next
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            )}
-            {step === 3 && (
-              <Button
-                className="btn-primary px-6 py-2"
+              className="w-full btn-primary"
                 onClick={async () => {
                   try {
                     const today = new Date();
@@ -912,17 +1299,21 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate }: { onReset?: (
                     console.error('Error saving split bill:', error);
                     toast({ title: 'Error', description: 'Failed to save split bill. Please try again.' });
                   } finally {
-                    setStep(-1);
+                  if (onNavigate) {
+                    onNavigate();
+                  } else {
+                    handleStepChange(-1);
+                  }
                   }
                 }}
               >
-                <ArrowRight className="w-4 h-4 mr-1" />
-                Done
+              Complete Split Bill
+              <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
-            )}
           </div>
         </div>
       )}
+
       
       {/* Global Edit Item Price Dialog (available in all steps) */}
           <Dialog open={isEditItemOpen} onOpenChange={setIsEditItemOpen}>

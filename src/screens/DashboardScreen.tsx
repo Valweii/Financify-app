@@ -88,21 +88,6 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Hero Image */}
-      <div className="relative rounded-2xl overflow-hidden">
-        {/* <img 
-          src={heroImage} 
-          alt="Financial Management Dashboard" 
-          className="w-full h-32 object-cover object-[center_10%]"
-        /> */}
-        {/* <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-primary/60 flex items-center justify-center">
-          <div className="text-center text-white">
-            <h2 className="text-responsive-lg font-bold">Smart Financial Management</h2>
-            <p className="text-responsive-sm opacity-90">Track, analyze, and optimize your spending</p>
-          </div>
-        </div> */}
-      </div>
-
       {/* Header */}
       <div className="space-y-2">
         <h1 className="text-responsive-2xl font-bold text-foreground">
@@ -129,60 +114,6 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
           </p>
         </div>
       </Card>
-
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-responsive-lg font-semibold mb-3">Quick Actions</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <Card className="financial-card p-4 cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => navigate('/import-pdf')}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                <Upload className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium">Import PDF</p>
-                <p className="text-xs text-muted-foreground">Bank statement</p>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="financial-card p-4 cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => navigate('/split-bill')}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                <Users className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium">Split Bill</p>
-                <p className="text-xs text-muted-foreground">Create new split</p>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="financial-card p-4 cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => navigate('/active-split-bills')}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                <Users className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium">Active Splits</p>
-                <p className="text-xs text-muted-foreground">View active bills</p>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="financial-card p-4 cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => onNavigate('reports')}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                <PieChart className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium">Reports</p>
-                <p className="text-xs text-muted-foreground">View analytics</p>
-              </div>
-            </div>
-          </Card>
-        </div>
-      </div>
 
       {/* Monthly Stats */}
       <div>

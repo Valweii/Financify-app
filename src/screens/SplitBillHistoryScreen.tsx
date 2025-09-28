@@ -106,14 +106,6 @@ export const SplitBillHistoryScreen = ({ onBack }: { onBack: () => void }) => {
       <div className={`space-y-6 ${isAnimating && animationDirection === 'exit' ? 'history-swipe-exit' : 'history-swipe-enter'}`}>
         <div className="flex items-center justify-between w-full px-0 py-4">
           <h2 className="text-xl font-semibold">Split Bill Summary</h2>
-          <Button 
-            variant="ghost" 
-            onClick={handleBackToList} 
-            className="flex items-center gap-2 px-4 py-2"
-          >
-            <ArrowLeft className="w-4 h-4" /> 
-            Back
-          </Button>
         </div>
 
         <Card className="financial-card p-6">
@@ -243,14 +235,6 @@ export const SplitBillHistoryScreen = ({ onBack }: { onBack: () => void }) => {
     <div className={`space-y-4 ${isAnimating && animationDirection === 'exit' ? 'split-swipe-exit' : 'split-swipe-enter'}`}>
       <div className="flex items-center justify-between w-full px-0 py-4">
         <h2 className="text-xl font-semibold">Active Split Bill</h2>
-        <Button 
-          variant="ghost" 
-          onClick={onBack} 
-          className="flex items-center gap-2 px-4 py-2"
-        >
-          <ArrowLeft className="w-4 h-4" /> 
-          Back
-        </Button>
       </div>
 
       {splitBillHistory.length === 0 ? (
