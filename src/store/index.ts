@@ -585,12 +585,16 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
     const { transactions } = get();
     if (transactions.length === 0) return 0;
 
-    // Compute balance as sum(credits) - sum(debits)
-    const balance = transactions.reduce((acc, t) => {
-      return acc + t.amount_cents;
-    }, 0);
+    // Calculate income and expense separately, then return income - expense
+    const income = transactions
+      .filter(t => t.type === 'credit')
+      .reduce((sum, t) => sum + t.amount_cents, 0);
+      
+    const expense = transactions
+      .filter(t => t.type === 'debit')
+      .reduce((sum, t) => sum + Math.abs(t.amount_cents), 0);
 
-    return balance;
+    return income - expense;
   },
   
   getMonthlyStats: () => {
