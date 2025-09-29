@@ -219,7 +219,7 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
           <div className="text-xs text-muted-foreground text-center">
             <p>• Supported format: PDF only</p>
             <p>• Maximum file size: 10MB</p>
-            <p>• Compatible with BCA bank statements</p>
+            <p>• Recommended for BCA mobile instead of MyBCA</p>
           </div>
         </div>
       </Card>

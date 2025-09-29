@@ -552,6 +552,14 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
     return totals;
   }, [people, items, taxServicePercent]);
 
+  // Calculate total bill (all items + tax & service fee)
+  const totalBillAmount = useMemo(() => {
+    const subtotalSum = items.reduce((sum, item) => sum + item.price_cents, 0);
+    const taxPct = Math.max(0, Math.min(100, taxServicePercent || 0));
+    const taxServiceAmount = Math.round(subtotalSum * taxPct / 100);
+    return subtotalSum + taxServiceAmount;
+  }, [items, taxServicePercent]);
+
   const canProceedFromPeople = people.length > 0;
   const allItemsHaveParticipants = items.length > 0 && items.every(it => it.participants.length > 0);
 
@@ -993,6 +1001,21 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
             </div>
             <div className="flex items-end"><div className="text-sm text-muted-foreground">&nbsp;</div></div>
           </div>
+          
+          {/* All Items Total + Tax & Service Fee */}
+          {items.length > 0 && (
+            <div className="rounded-lg border border-primary/20 p-3 mb-3 bg-primary/5">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium text-primary">Total Bill (Items + Tax & Service)</div>
+                <MoneyDisplay 
+                  amount={totalBillAmount} 
+                  size="md" 
+                  animate={false} 
+                />
+              </div>
+            </div>
+          )}
+          
           {/* Preview Current total */}
           {assignPersonId && (
               <div className="rounded-lg border border-border/50 p-3 mb-3 bg-muted/30">
