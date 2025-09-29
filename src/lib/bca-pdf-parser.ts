@@ -133,6 +133,13 @@ function extractDateFromLine(line: string): string | null {
     const month = dateMatch[2].padStart(2, '0');
     return `${day}/${month}`;
   }
+  
+  // Match 'PEND' at start of line (case insensitive)
+  const pendMatch = line.match(/^PEND\b/i);
+  if (pendMatch) {
+    return 'PEND';
+  }
+  
   return null;
 }
 
@@ -215,6 +222,13 @@ function parseTransactionFromBuffer(buffer: TransactionBuffer): ImportedTransact
 
 // Enhanced date conversion with better year inference
 function toIsoDate(ddmm: string): string {
+  // Handle 'PEND' case - set to current date (today)
+  if (ddmm.toUpperCase() === 'PEND') {
+    const now = new Date();
+    console.log('PEND date detected, using current date:', now.toISOString());
+    return now.toISOString();
+  }
+  
   const [day, month] = ddmm.split('/').map(part => part.padStart(2, '0'));
   
   const now = new Date();
@@ -266,7 +280,7 @@ export function parseBcaStatementText(text: string): ImportedTransaction[] {
       processBuffer();
       
       // Start new transaction buffer
-      const remainingLine = line.replace(/^\d{1,2}\/\d{1,2}\s*/, '').trim();
+      const remainingLine = line.replace(/^(\d{1,2}\/\d{1,2}|PEND)\s*/i, '').trim();
       currentBuffer = {
         date,
         lines: remainingLine ? [remainingLine] : [],
