@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -29,9 +29,8 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
   const [isMobile, setIsMobile] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
-  // Category options with icons
-  const categoryOptions = [
-    // Expense Categories
+  // Category options separated by type
+  const expenseCategories = [
     { value: "Food & Dining", label: "Food & Dining", icon: "🍽️" },
     { value: "Transport", label: "Transport", icon: "🚗" },
     { value: "Shopping", label: "Shopping", icon: "🛍️" },
@@ -40,14 +39,27 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
     { value: "Health & Fitness", label: "Health & Fitness", icon: "💪" },
     { value: "Entertainment & Leisure", label: "Entertainment & Leisure", icon: "🎬" },
     { value: "Financial Fees", label: "Financial Fees", icon: "💳" },
-    { value: "Other", label: "Other", icon: "📦" },
-    // Income Categories
+    { value: "Other", label: "Other", icon: "📦" }
+  ];
+
+  const incomeCategories = [
     { value: "Salary / Wages", label: "Salary / Wages", icon: "💰" },
     { value: "Business Income", label: "Business Income", icon: "💼" },
     { value: "Freelance / Side Hustle", label: "Freelance / Side Hustle", icon: "🆓" },
     { value: "Investments", label: "Investments", icon: "📈" },
     { value: "Gifts & Transfers", label: "Gifts & Transfers", icon: "🎁" }
   ];
+
+  // Filter categories based on transaction type
+  const categoryOptions = formData.type === 'credit' ? incomeCategories : expenseCategories;
+
+  // Clear category when transaction type changes if current category is not valid for new type
+  useEffect(() => {
+    const currentCategoryValid = categoryOptions.some(cat => cat.value === formData.category);
+    if (!currentCategoryValid && formData.category) {
+      setFormData(prev => ({ ...prev, category: '' }));
+    }
+  }, [formData.type, categoryOptions, formData.category]);
 
   // Detect mobile device and keyboard
   useEffect(() => {
@@ -201,24 +213,14 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
                 <Tag className="w-4 h-4" />
                 Category
               </div>
-              <Select
+              <SearchableSelect
                 value={formData.category}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
-              >
-                <SelectTrigger className="rounded-2xl h-12">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categoryOptions.map((category) => (
-                    <SelectItem key={category.value} value={category.value}>
-                      <div className="flex items-center gap-2">
-                        <span>{category.icon}</span>
-                        <span>{category.label}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder={formData.type === 'credit' ? "Select income category" : "Select expense category"}
+                options={categoryOptions}
+                className="w-full"
+                triggerClassName="rounded-2xl h-12"
+              />
             </div>
 
             {/* Date */}

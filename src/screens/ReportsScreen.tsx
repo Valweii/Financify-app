@@ -45,6 +45,32 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
   const [swipedTransactionId, setSwipedTransactionId] = useState<string | null>(null);
   const [swipeStartX, setSwipeStartX] = useState<number | null>(null);
   const [swipeCurrentX, setSwipeCurrentX] = useState<number | null>(null);
+  
+  // Filter card ref for outside click detection
+  const filterCardRef = useRef<HTMLDivElement>(null);
+
+  // Handle outside click to collapse filter card
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterCardRef.current && !filterCardRef.current.contains(event.target as Node)) {
+        setShowFilters(false);
+      }
+    };
+
+    if (showFilters) {
+      // Add a small delay to prevent immediate collapse when clicking the filter button
+      const timeoutId = setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+      }, 100);
+
+      return () => {
+        clearTimeout(timeoutId);
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('touchstart', handleClickOutside);
+      };
+    }
+  }, [showFilters]);
 
   // Get filtered and paginated transactions
   const filteredTransactions = useMemo(() => {
@@ -80,11 +106,11 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
 
       // Amount range filter
       if (amountMin) {
-        const minAmount = parseFloat(amountMin) * 100; // Convert to cents
+        const minAmount = parseFloat(amountMin);
         if (transaction.amount_cents < minAmount) return false;
       }
       if (amountMax) {
-        const maxAmount = parseFloat(amountMax) * 100; // Convert to cents
+        const maxAmount = parseFloat(amountMax);
         if (transaction.amount_cents > maxAmount) return false;
       }
 
@@ -670,7 +696,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
         {/* All Transactions Tab */}
         <TabsContent value="all" className="space-y-6 mt-6">
           {/* Search and Filter Controls */}
-          <Card className="financial-card p-4 sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b shadow-sm">
+          <Card ref={filterCardRef} className="financial-card p-4 sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b shadow-sm">
             <div className="space-y-4">
               {/* Search Bar and Filter Toggle */}
               <div className="flex items-center gap-3 h-10">
