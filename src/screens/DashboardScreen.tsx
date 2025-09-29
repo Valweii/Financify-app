@@ -68,7 +68,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
         if (t.type === 'credit') {
           data[idx].income += t.amount_cents;
         } else {
-          data[idx].expense += t.amount_cents;
+          data[idx].expense += Math.abs(t.amount_cents);
         }
       }
     }
@@ -250,7 +250,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
                     </p>
                   </div>
                   <MoneyDisplay 
-                    amount={transaction.type === 'credit' ? transaction.amount_cents : -transaction.amount_cents}
+                    amount={transaction.amount_cents}
                     showSign
                     size="md"
                     animate={false}

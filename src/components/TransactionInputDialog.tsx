@@ -31,16 +31,22 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
 
   // Category options with icons
   const categoryOptions = [
-    { value: "Income", label: "Income", icon: "💰" },
+    // Expense Categories
     { value: "Food & Dining", label: "Food & Dining", icon: "🍽️" },
-    { value: "Transportation", label: "Transportation", icon: "🚗" },
+    { value: "Transport", label: "Transport", icon: "🚗" },
     { value: "Shopping", label: "Shopping", icon: "🛍️" },
-    { value: "Entertainment", label: "Entertainment", icon: "🎬" },
     { value: "Bills & Utilities", label: "Bills & Utilities", icon: "⚡" },
-    { value: "Healthcare", label: "Healthcare", icon: "🏥" },
-    { value: "Education", label: "Education", icon: "📚" },
-    { value: "Travel", label: "Travel", icon: "✈️" },
-    { value: "Other", label: "Other", icon: "📦" }
+    { value: "Housing", label: "Housing", icon: "🏠" },
+    { value: "Health & Fitness", label: "Health & Fitness", icon: "💪" },
+    { value: "Entertainment & Leisure", label: "Entertainment & Leisure", icon: "🎬" },
+    { value: "Financial Fees", label: "Financial Fees", icon: "💳" },
+    { value: "Other", label: "Other", icon: "📦" },
+    // Income Categories
+    { value: "Salary / Wages", label: "Salary / Wages", icon: "💰" },
+    { value: "Business Income", label: "Business Income", icon: "💼" },
+    { value: "Freelance / Side Hustle", label: "Freelance / Side Hustle", icon: "🆓" },
+    { value: "Investments", label: "Investments", icon: "📈" },
+    { value: "Gifts & Transfers", label: "Gifts & Transfers", icon: "🎁" }
   ];
 
   // Detect mobile device and keyboard

@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatCard } from "@/components/StatCard";
 import { MoneyDisplay } from "@/components/MoneyDisplay";
 import { useFinancifyStore, ImportedTransaction } from "@/store";
-import { Calendar, TrendingUp, TrendingDown, PieChart, Plus, Trash2, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { Calendar, TrendingUp, TrendingDown, PieChart, Plus, Trash2, ChevronLeft, ChevronRight, ChevronDown, Search, Filter, X } from "lucide-react";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -30,19 +30,175 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [expandedTransaction, setExpandedTransaction] = useState<string | null>(null);
   const [displayedTransactionsCount, setDisplayedTransactionsCount] = useState(50);
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [amountMin, setAmountMin] = useState("");
+  const [amountMax, setAmountMax] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Swipe state
+  const [swipedTransactionId, setSwipedTransactionId] = useState<string | null>(null);
+  const [swipeStartX, setSwipeStartX] = useState<number | null>(null);
+  const [swipeCurrentX, setSwipeCurrentX] = useState<number | null>(null);
 
-  // Get the most recent transactions to display
+  // Get filtered and paginated transactions
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(transaction => {
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = 
+          transaction.description.toLowerCase().includes(query) ||
+          transaction.category.toLowerCase().includes(query) ||
+          transaction.source.toLowerCase().includes(query);
+        if (!matchesSearch) return false;
+      }
+
+      // Category filter
+      if (selectedCategories.length > 0) {
+        if (!selectedCategories.includes(transaction.category)) return false;
+      }
+
+      // Type filter
+      if (selectedTypes.length > 0) {
+        const transactionType = transaction.type === 'credit' ? 'Income' : 'Expense';
+        if (!selectedTypes.includes(transactionType)) return false;
+      }
+
+      // Date range filter
+      if (dateFrom) {
+        if (transaction.date < dateFrom) return false;
+      }
+      if (dateTo) {
+        if (transaction.date > dateTo) return false;
+      }
+
+      // Amount range filter
+      if (amountMin) {
+        const minAmount = parseFloat(amountMin) * 100; // Convert to cents
+        if (transaction.amount_cents < minAmount) return false;
+      }
+      if (amountMax) {
+        const maxAmount = parseFloat(amountMax) * 100; // Convert to cents
+        if (transaction.amount_cents > maxAmount) return false;
+      }
+
+      return true;
+    });
+  }, [transactions, searchQuery, selectedCategories, selectedTypes, dateFrom, dateTo, amountMin, amountMax]);
+
   const displayedTransactions = useMemo(() => {
-    return transactions
+    return filteredTransactions
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, displayedTransactionsCount);
-  }, [transactions, displayedTransactionsCount]);
+  }, [filteredTransactions, displayedTransactionsCount]);
 
-  const hasMoreTransactions = transactions.length > displayedTransactionsCount;
+  const hasMoreTransactions = filteredTransactions.length > displayedTransactionsCount;
 
   const loadMoreTransactions = () => {
-    setDisplayedTransactionsCount(prev => Math.min(prev + 50, transactions.length));
+    setDisplayedTransactionsCount(prev => Math.min(prev + 50, filteredTransactions.length));
   };
+
+  // Filter helper functions
+  const clearAllFilters = () => {
+    setSearchQuery("");
+    setSelectedCategories([]);
+    setSelectedTypes([]);
+    setDateFrom("");
+    setDateTo("");
+    setAmountMin("");
+    setAmountMax("");
+    setDisplayedTransactionsCount(50);
+  };
+
+  const toggleCategory = (category: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(category) 
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
+    );
+  };
+
+  const toggleType = (type: string) => {
+    setSelectedTypes(prev => {
+      // If clicking the same type, deselect it (toggle off)
+      if (prev.includes(type)) {
+        setSelectedCategories([]);
+        return [];
+      } else {
+        // If clicking a different type, select only that type
+        setSelectedCategories([]);
+        return [type];
+      }
+    });
+  };
+
+  // Get categories based on selected transaction type
+  const getFilteredCategories = () => {
+    const expenseCategories = ['Food & Dining', 'Transport', 'Shopping', 'Bills & Utilities', 
+                              'Housing', 'Health & Fitness', 'Entertainment & Leisure', 'Financial Fees', 'Other'];
+    const incomeCategories = ['Salary / Wages', 'Business Income', 'Freelance / Side Hustle', 
+                             'Investments', 'Gifts & Transfers'];
+    
+    if (selectedTypes.length === 0) {
+      // If no type selected, don't show any categories
+      return [];
+    } else if (selectedTypes.includes('Expense')) {
+      // If expense selected, show expense categories
+      return expenseCategories;
+    } else if (selectedTypes.includes('Income')) {
+      // If income selected, show income categories
+      return incomeCategories;
+    }
+    
+    return [];
+  };
+
+  const hasActiveFilters = searchQuery || selectedCategories.length > 0 || selectedTypes.length > 0 || dateFrom || dateTo || amountMin || amountMax;
+
+  // Swipe handlers
+  const handleSwipeStart = (e: React.TouchEvent, transactionId: string) => {
+    // Clear any existing swipe states
+    setSwipedTransactionId(null);
+    setSwipeStartX(null);
+    setSwipeCurrentX(null);
+    
+    setSwipeStartX(e.touches[0].clientX);
+    setSwipeCurrentX(e.touches[0].clientX);
+    setSwipedTransactionId(transactionId);
+  };
+
+  const handleSwipeMove = (e: React.TouchEvent) => {
+    if (swipeStartX !== null && swipedTransactionId) {
+      setSwipeCurrentX(e.touches[0].clientX);
+    }
+  };
+
+  const handleSwipeEnd = () => {
+    if (swipeStartX !== null && swipeCurrentX !== null && swipedTransactionId) {
+      const swipeDistance = swipeCurrentX - swipeStartX;
+      if (swipeDistance < -50) {
+        // Swipe left - reveal delete button
+        setSwipedTransactionId(swipedTransactionId);
+      } else {
+        // Swipe right or insufficient distance - hide delete button
+        setSwipedTransactionId(null);
+      }
+    }
+    setSwipeStartX(null);
+    setSwipeCurrentX(null);
+  };
+
+  const handleDeleteTransaction = (transactionId: string) => {
+    deleteTransaction(transactionId);
+    setSwipedTransactionId(null);
+  };
+
 
   // Reset displayed transactions count when switching away from "all" tab
   useEffect(() => {
@@ -93,7 +249,15 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, [activeTab]);
   const categoryOptions = useMemo(() => {
-    const defaults = ['Income', 'Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Education', 'Savings', 'Other'];
+    const expenseCategories = [
+      'Food & Dining', 'Transport', 'Shopping', 'Bills & Utilities', 
+      'Housing', 'Health & Fitness', 'Entertainment & Leisure', 'Financial Fees', 'Other'
+    ];
+    const incomeCategories = [
+      'Salary / Wages', 'Business Income', 'Freelance / Side Hustle', 
+      'Investments', 'Gifts & Transfers', 'Other'
+    ];
+    const defaults = [...expenseCategories, ...incomeCategories];
     const set = new Set<string>(defaults);
     transactions.forEach(t => {
       if (t.category) set.add(t.category);
@@ -122,7 +286,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
       
     const expense = dayTransactions
       .filter(t => t.type === 'debit')
-      .reduce((sum, t) => sum + t.amount_cents, 0);
+      .reduce((sum, t) => sum + Math.abs(t.amount_cents), 0);
 
     return { income, expense, net: income - expense, transactions: dayTransactions };
   };
@@ -145,7 +309,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
       if (t.type === 'credit') {
         acc[t.category].income += t.amount_cents;
       } else {
-        acc[t.category].expense += t.amount_cents;
+        acc[t.category].expense += Math.abs(t.amount_cents);
       }
       acc[t.category].count += 1;
       return acc;
@@ -298,7 +462,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                         </div>
                       </div>
                       <MoneyDisplay
-                        amount={transaction.type === 'credit' ? transaction.amount_cents : -transaction.amount_cents}
+                        amount={transaction.amount_cents}
                         showSign
                         size="md"
                         animate={false}
@@ -366,7 +530,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
           <div className="grid grid-cols-3 gap-3 mb-4">
             {(() => {
               const income = monthlyTransactions.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount_cents, 0);
-              const expense = monthlyTransactions.filter(t => t.type === 'debit').reduce((s, t) => s + t.amount_cents, 0);
+              const expense = monthlyTransactions.filter(t => t.type === 'debit').reduce((s, t) => s + Math.abs(t.amount_cents), 0);
               const net = income - expense;
               return (
                 <>
@@ -453,21 +617,33 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                                 const db = new Date(b.date).getTime();
                                 return da === db ? 0 : (da < db ? -1 : 1) * dir;
                               } else {
-                                const aa = a.type === 'credit' ? a.amount_cents : -a.amount_cents;
-                                const bb = b.type === 'credit' ? b.amount_cents : -b.amount_cents;
+                                const aa = a.amount_cents;
+                                const bb = b.amount_cents;
                                 return aa === bb ? 0 : (aa < bb ? -1 : 1) * dir;
                               }
                             })].map(t => (
-                            <div key={t.id} className="grid grid-cols-2 gap-2 text-sm items-start">
+                            <div key={t.id} className="grid grid-cols-2 gap-2 text-sm items-start cursor-pointer" onClick={() => setExpandedTransaction(prev => prev === t.id ? null : t.id)}>
                               <div className="truncate pr-2">
-                                <div className="font-medium truncate">{t.description}</div>
+                                <div className="font-medium truncate flex items-center gap-2">
+                                  <ChevronDown className={`w-3 h-3 flex-shrink-0 transition-transform ${expandedTransaction === t.id ? 'rotate-180' : ''}`} />
+                                  {t.description}
+                                </div>
                                 <div className="text-muted-foreground truncate">
                                   {new Date(t.date).toLocaleDateString('en-US')}
                                 </div>
                               </div>
                               <div className="text-right">
-                                <MoneyDisplay amount={t.type === 'credit' ? t.amount_cents : -t.amount_cents} showSign size="md" animate={false} />
+                                <MoneyDisplay amount={t.amount_cents} showSign size="md" animate={false} />
                               </div>
+                              {expandedTransaction === t.id && (
+                                <div className="col-span-2 mt-2 pt-2 border-t border-border/50">
+                                  <div className="text-xs text-muted-foreground space-y-1">
+                                    <div>Description: {t.description}</div>
+                                    <div>Category: {t.category}</div>
+                                    <div>Source: {t.source}</div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -492,49 +668,241 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
 
         {/* All Transactions Tab */}
         <TabsContent value="all" className="space-y-6 mt-6">
+          {/* Search and Filter Controls */}
+          <Card className="financial-card p-4 sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b shadow-sm">
+            <div className="space-y-4">
+              {/* Search Bar and Filter Toggle */}
+              <div className="flex items-center gap-3 h-10">
+                {/* Search Bar */}
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Input
+                    placeholder="Search transactions by description, category, or source..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 h-10"
+                  />
+                </div>
+
+                {/* Filter Button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center gap-2 flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95 h-10"
+                >
+                  <Filter className={`w-4 h-4 transition-transform duration-300 ${showFilters ? 'rotate-180' : ''}`} />
+                  Filters
+                  {hasActiveFilters && (
+                    <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 text-xs flex items-center justify-center">
+                      {[searchQuery, selectedCategories.length, selectedTypes.length, dateFrom, dateTo, amountMin, amountMax].filter(Boolean).length}
+                    </span>
+                  )}
+                </Button>
+                
+                {/* Clear All Button */}
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearAllFilters}
+                    className="text-muted-foreground hover:text-foreground flex-shrink-0 h-10"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Clear All
+                  </Button>
+                )}
+              </div>
+
+              {/* Advanced Filters */}
+              <div className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                showFilters ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'
+              }`}>
+                <div className="space-y-4 pt-4 border-t border-border/50">
+                  {/* Type Filter */}
+                  <div className="animate-in slide-in-from-top-2 duration-300">
+                    <label className="text-sm font-medium mb-2 block">Transaction Type</label>
+                    <div className="flex gap-2">
+                      {['Income', 'Expense'].map(type => (
+                        <Button
+                          key={type}
+                          variant={selectedTypes.includes(type) ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => toggleType(type)}
+                          className="flex-1"
+                        >
+                          {type}
+                        </Button>
+                      ))}
+                    </div>
+                    {selectedTypes.length > 0 && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Selected: {selectedTypes[0]}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Category Filter */}
+                  <div className="animate-in slide-in-from-top-2 duration-300 delay-75">
+                    <label className="text-sm font-medium mb-2 block">Categories</label>
+                    {selectedTypes.length === 0 ? (
+                      <div className="text-sm text-muted-foreground italic">
+                        Select a transaction type to see available categories
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {getFilteredCategories().map(category => (
+                          <Button
+                            key={category}
+                            variant={selectedCategories.includes(category) ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => toggleCategory(category)}
+                            className="text-xs"
+                          >
+                            {category}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Date Range Filter */}
+                  <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-2 duration-300 delay-150">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">From Date</label>
+                      <Input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        placeholder="Start date"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">To Date</label>
+                      <Input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        placeholder="End date"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Amount Range Filter */}
+                  <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-2 duration-300 delay-200">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Min Amount</label>
+                      <Input
+                        type="number"
+                        value={amountMin}
+                        onChange={(e) => setAmountMin(e.target.value)}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Max Amount</label>
+                      <Input
+                        type="number"
+                        value={amountMax}
+                        onChange={(e) => setAmountMax(e.target.value)}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+
           {/* Add Transaction moved to Import tab */}
-          <div className="space-y-2">
-            {transactions.length === 0 && (
-              <Card className="financial-card p-8 text-center">
-                <p className="text-muted-foreground">No transactions yet</p>
-              </Card>
-             )}
-            
+          <div 
+            className="space-y-2 pt-4"
+            onClick={() => {
+              // Close any open swipe states when clicking outside
+              setSwipedTransactionId(null);
+              setSwipeStartX(null);
+              setSwipeCurrentX(null);
+            }}
+          >
             {/* Show transaction count info */}
             {transactions.length > 0 && (
               <div className="text-sm text-muted-foreground mb-4">
-                Showing {displayedTransactions.length} of {transactions.length} transactions
+                Showing {displayedTransactions.length} of {filteredTransactions.length} transactions
+                {hasActiveFilters && (
+                  <span className="text-primary ml-2">(filtered from {transactions.length} total)</span>
+                )}
               </div>
             )}
             
-            {displayedTransactions.map(t => (
-              <Card key={t.id} className="financial-card p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1 min-w-0" onClick={() => setExpandedTransaction(prev => prev === t.id ? null : t.id)}>
-                    <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${expandedTransaction === t.id ? 'rotate-180' : ''}`} />
-                    <div className="min-w-0 w-full">
-                      <div className="font-medium truncate">{t.description}</div>
-                      <div className="text-sm text-muted-foreground truncate">
-                        {new Date(t.date).toLocaleDateString(transactionDateFormat)} • {t.category} • {t.source}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <MoneyDisplay amount={t.type === 'credit' ? t.amount_cents : -t.amount_cents} showSign size="md" animate={false} />
-                    <Button variant="ghost" size="icon" onClick={() => deleteTransaction(t.id)} className="ml-2 text-destructive hover:text-destructive">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedTransaction === t.id ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                  <div className="space-y-2 pt-2 border-t border-border/50 mt-2">
-                    <div className="text-sm text-muted-foreground">Description: {t.description}</div>
-                    <div className="text-sm text-muted-foreground">Category: {t.category}</div>
-                    <div className="text-sm text-muted-foreground">Source: {t.source}</div>
-                  </div>
-                </div>
+            {displayedTransactions.length === 0 && filteredTransactions.length === 0 && hasActiveFilters ? (
+              <Card className="financial-card p-8 text-center">
+                <p className="text-muted-foreground">No transactions match your filters</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="mt-2"
+                >
+                  Clear Filters
+                </Button>
               </Card>
-            ))}
+            ) : displayedTransactions.length === 0 && transactions.length === 0 ? (
+              <Card className="financial-card p-8 text-center">
+                <p className="text-muted-foreground">No transactions yet</p>
+              </Card>
+             ) : (
+               displayedTransactions.map(t => (
+               <div key={t.id} className="relative overflow-hidden">
+                 <Card 
+                   className={`financial-card p-4 transition-transform duration-300 ${
+                     swipedTransactionId === t.id ? '-translate-x-20' : 'translate-x-0'
+                   }`}
+                   onTouchStart={(e) => handleSwipeStart(e, t.id)}
+                   onTouchMove={handleSwipeMove}
+                   onTouchEnd={handleSwipeEnd}
+                 >
+                   <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-2 flex-1 min-w-0">
+                       <div className="min-w-0 w-full">
+                         <div className="font-medium truncate">{t.description}</div>
+                         <div className="text-sm text-muted-foreground truncate">
+                           {new Date(t.date).toLocaleDateString(transactionDateFormat)}
+                         </div>
+                       </div>
+                     </div>
+                     <div className="flex items-center">
+                       <MoneyDisplay amount={t.amount_cents} showSign size="md" animate={false} />
+                     </div>
+                   </div>
+                   <div className="space-y-2 pt-2 border-t border-border/50 mt-2">
+                     <div className="text-sm text-muted-foreground">Description: {t.description}</div>
+                     <div className="text-sm text-muted-foreground">Category: {t.category}</div>
+                     <div className="text-sm text-muted-foreground">Source: {t.source}</div>
+                   </div>
+                 </Card>
+                 
+                 {/* Delete Button - Revealed on Swipe */}
+                 <div className={`absolute right-0 top-0 h-full w-20 flex items-center justify-center transition-transform duration-300 ${
+                   swipedTransactionId === t.id ? 'translate-x-0' : 'translate-x-full'
+                 }`}>
+                   <Button
+                     variant="destructive"
+                     size="sm"
+                     onClick={(e) => {
+                       e.stopPropagation();
+                       handleDeleteTransaction(t.id);
+                     }}
+                     className="h-full w-16 rounded-lg"
+                   >
+                     Delete
+                   </Button>
+                 </div>
+               </div>
+             )))}
             
             {/* Load More Button */}
             {hasMoreTransactions && (
@@ -544,7 +912,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                   variant="outline"
                   className="w-full max-w-xs"
                 >
-                  Load More Transactions ({transactions.length - displayedTransactionsCount} remaining)
+                  Load More Transactions ({filteredTransactions.length - displayedTransactionsCount} remaining)
                 </Button>
               </div>
             )}

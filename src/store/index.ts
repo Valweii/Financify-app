@@ -587,7 +587,7 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
 
     // Compute balance as sum(credits) - sum(debits)
     const balance = transactions.reduce((acc, t) => {
-      return acc + (t.type === 'credit' ? t.amount_cents : -t.amount_cents);
+      return acc + t.amount_cents;
     }, 0);
 
     return balance;
@@ -610,7 +610,7 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       
     const expense = monthlyTransactions
       .filter(t => t.type === 'debit')
-      .reduce((sum, t) => sum + t.amount_cents, 0);
+      .reduce((sum, t) => sum + Math.abs(t.amount_cents), 0);
     
     return {
       income,

@@ -147,17 +147,17 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
         const desc = t.description.toLowerCase();
         let category = t.category;
         if (!category) {
-          if (/(salary|gaji|payroll|transfer.*(gaji|salary))/i.test(desc)) category = 'Income';
-          else if (/(indomaret|alfamart|supermarket|mini market|grocer|hypermart)/i.test(desc)) category = 'Food & Drinks';
+          if (/(salary|gaji|payroll|transfer.*(gaji|salary))/i.test(desc)) category = 'Salary / Wages';
+          else if (/(indomaret|alfamart|supermarket|mini market|grocer|hypermart)/i.test(desc)) category = 'Food & Dining';
           else if (/(tokopedia|shopee|lazada|blibli|ecommerce|marketplace)/i.test(desc)) category = 'Shopping';
           else if (/(pln|pdam|electric| listrik |water|internet|indihome|first media|xl|telkomsel|telkom)/i.test(desc)) category = 'Bills & Utilities';
           else if (/(grab|gojek|transport|bus|train|travel|toll|tol|fuel|pertamina|spbu)/i.test(desc)) category = 'Transport';
-          else if (/(hospital|clinic|apotek|pharmacy|doctor|dokter|bpjs)/i.test(desc)) category = 'Health';
-          else if (/(restaurant|cafe|coffee|mc ?donald|kfc|pizza|burger)/i.test(desc)) category = 'Food & Drinks';
+          else if (/(hospital|clinic|apotek|pharmacy|doctor|dokter|bpjs)/i.test(desc)) category = 'Health & Fitness';
+          else if (/(restaurant|cafe|coffee|mc ?donald|kfc|pizza|burger)/i.test(desc)) category = 'Food & Dining';
           else if (/(rent|sewa|kos| kontrakan |apartemen)/i.test(desc)) category = 'Housing';
-          else if (/(education|tuition|school|kampus|course|kursus)/i.test(desc)) category = 'Education';
-          else if (/(fee|biaya|admin|charges)/i.test(desc)) category = 'Fees';
-          else if (/(bca|bi-fast|trsf e-banking|transfer)/i.test(desc)) category = t.type === 'credit' ? 'Income' : 'Transfer';
+          else if (/(education|tuition|school|kampus|course|kursus)/i.test(desc)) category = 'Other';
+          else if (/(fee|biaya|admin|charges)/i.test(desc)) category = 'Financial Fees';
+          else if (/(bca|bi-fast|trsf e-banking|transfer)/i.test(desc)) category = t.type === 'credit' ? 'Gifts & Transfers' : 'Other';
           else category = 'Other';
         }
         return { ...t, category };
@@ -329,8 +329,12 @@ const TransactionEditItem = ({
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   const categories = [
-    "Food & Dining", "Transportation", "Shopping", "Entertainment",
-    "Utilities", "Rent", "Salary", "Investments", "Other"
+    // Expense Categories
+    "Food & Dining", "Transport", "Shopping", "Bills & Utilities", 
+    "Housing", "Health & Fitness", "Entertainment & Leisure", "Financial Fees", "Other",
+    // Income Categories
+    "Salary / Wages", "Business Income", "Freelance / Side Hustle", 
+    "Investments", "Gifts & Transfers"
   ];
 
   const validate = () => {
@@ -457,7 +461,7 @@ const TransactionEditItem = ({
               {new Date(transaction.date).toLocaleDateString()}
             </span>
             <MoneyDisplay 
-              amount={transaction.type === 'credit' ? transaction.amount_cents : -transaction.amount_cents} 
+              amount={transaction.amount_cents} 
               showSign 
               size="sm" 
               animate={false}
