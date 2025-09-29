@@ -9,37 +9,20 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useEncryption } from '@/hooks/useEncryption';
 import { useFinancifyStore } from '@/store';
-import { Shield, Lock, Key, AlertTriangle, CheckCircle, Smartphone } from 'lucide-react';
+import { Shield, Lock, Key, CheckCircle, Smartphone } from 'lucide-react';
 
 export const EncryptionStatus = () => {
-  const [showDisableWarning, setShowDisableWarning] = useState(false);
   const [showSetupFromDevice, setShowSetupFromDevice] = useState(false);
   
   const { toast } = useToast();
   const { 
     isKeySetup, 
-    clearEncryption, 
     getBackupCodes,
     clearBackupCodes,
     resetWithBackupCode
   } = useEncryption();
   
-  const { isEncryptionEnabled, setEncryptionEnabled, setEncryptionKey, loadTransactions } = useFinancifyStore();
-
-  const handleDisableEncryption = () => {
-    setShowDisableWarning(true);
-  };
-
-  const confirmDisableEncryption = () => {
-    clearEncryption(); // This now handles all cleanup including localStorage
-    setShowDisableWarning(false);
-    
-    toast({
-      title: "Encryption disabled",
-      description: "Your data will no longer be encrypted. Existing encrypted data remains encrypted.",
-      variant: "destructive"
-    });
-  };
+  const { setEncryptionKey, loadTransactions } = useFinancifyStore();
 
   const handleShowBackupCodes = () => {
     const codes = getBackupCodes();
@@ -62,7 +45,6 @@ export const EncryptionStatus = () => {
     
     const result = await resetWithBackupCode(backupCode, newPassword);
     if (result.success) {
-      setEncryptionEnabled(true);
       setShowSetupFromDevice(false);
       toast({ 
         title: 'Encryption reset', 
@@ -85,41 +67,6 @@ export const EncryptionStatus = () => {
     }
   };
 
-  if (showDisableWarning) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5 text-destructive" />
-          <h3 className="text-lg font-semibold">Disable Encryption?</h3>
-        </div>
-        
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            <strong>Warning:</strong> Disabling encryption will make your data visible to anyone with database access. 
-            Your existing encrypted data will remain encrypted and inaccessible without your key.
-          </AlertDescription>
-        </Alert>
-
-        <div className="flex gap-2">
-          <Button 
-            onClick={confirmDisableEncryption}
-            variant="destructive"
-            size="sm"
-          >
-            Yes, Disable Encryption
-          </Button>
-          <Button 
-            onClick={() => setShowDisableWarning(false)}
-            variant="outline"
-            size="sm"
-          >
-            Cancel
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   if (!isKeySetup) {
     return (
@@ -155,7 +102,7 @@ export const EncryptionStatus = () => {
           <div>
             <h3 className="font-semibold">End-to-End Encryption</h3>
             <p className="text-sm text-muted-foreground">
-              {isEncryptionEnabled ? 'Active' : 'Locked'}
+              Active
             </p>
           </div>
         </div>
@@ -188,15 +135,6 @@ export const EncryptionStatus = () => {
         >
           <Smartphone className="w-4 h-4 mr-1" />
           Sync
-        </Button>
-        <Button 
-          onClick={handleDisableEncryption}
-          variant="outline"
-          size="sm"
-          className="text-destructive hover:text-destructive"
-        >
-          <AlertTriangle className="w-4 h-4 mr-1" />
-          Disable
         </Button>
       </div>
     </div>

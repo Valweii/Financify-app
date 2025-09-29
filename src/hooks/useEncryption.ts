@@ -143,7 +143,7 @@ export const useEncryption = (): UseEncryptionReturn => {
   const [isKeySetup, setIsKeySetup] = useState(false);
   const [isKeyLoading, setIsKeyLoading] = useState(true);
   const [currentKey, setCurrentKey] = useState<CryptoKey | null>(null);
-  const { setEncryptionKey, setEncryptionEnabled } = useFinancifyStore();
+  const { setEncryptionKey } = useFinancifyStore();
 
   // Check if encryption key is set up on mount and sync encryption state
   useEffect(() => {
@@ -162,25 +162,20 @@ export const useEncryption = (): UseEncryptionReturn => {
           if (cached) {
             setCurrentKey(cached);
             setEncryptionKey(cached);
-            setEncryptionEnabled(true);
           } else {
             // Key exists but cache is missing, encryption is disabled
-            setEncryptionEnabled(false);
             setEncryptionEnabledLocal(false);
           }
         } catch (error) {
           console.error('❌ Failed to restore cached key:', error);
-          setEncryptionEnabled(false);
           setEncryptionEnabledLocal(false);
         }
-      } else {
-        setEncryptionEnabled(false);
       }
       
       setIsKeyLoading(false);
     };
     checkKeySetup();
-  }, [setEncryptionEnabled, setEncryptionKey]);
+  }, [setEncryptionKey]);
 
 
   // Setup encryption with password
@@ -224,7 +219,6 @@ export const useEncryption = (): UseEncryptionReturn => {
       try { await cacheCryptoKey(encryptionKey.key); } catch {}
       try { 
         setEncryptionKey(encryptionKey.key); 
-        setEncryptionEnabled(true);
         setEncryptionEnabledLocal(true); // Persist to localStorage
       } catch {}
       return { success: true, backupCodes };
@@ -286,7 +280,6 @@ export const useEncryption = (): UseEncryptionReturn => {
       try { await cacheCryptoKey(key); } catch {}
       try { 
         setEncryptionKey(key); 
-        setEncryptionEnabled(true);
         setEncryptionEnabledLocal(true); // Persist to localStorage
       } catch {}
       
@@ -304,9 +297,8 @@ export const useEncryption = (): UseEncryptionReturn => {
     clearEncryptionKey();
     setCurrentKey(null);
     setIsKeySetup(false);
-    setEncryptionEnabled(false);
     setEncryptionEnabledLocal(false); // Clear from localStorage
-  }, [setEncryptionEnabled]);
+  }, []);
 
   // Encrypt data
   const encrypt = useCallback(async (data: any): Promise<EncryptedData | null> => {
@@ -396,7 +388,6 @@ export const useEncryption = (): UseEncryptionReturn => {
         
         // Set encryption state to enabled and key in store
         setEncryptionKey(restoredKey);
-        setEncryptionEnabled(true);
         setEncryptionEnabledLocal(true);
         
         // Cache the restored key for future page reloads
@@ -426,7 +417,6 @@ export const useEncryption = (): UseEncryptionReturn => {
         
         // Set encryption state to enabled and key in store
         setEncryptionKey(newEncKey.key);
-        setEncryptionEnabled(true);
         setEncryptionEnabledLocal(true);
         
         // Cache the new key for future page reloads

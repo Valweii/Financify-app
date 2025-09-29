@@ -53,7 +53,6 @@ interface FinancifyStore {
   splitBillHistory: SplitBillHistory[];
   
   // Encryption state
-  isEncryptionEnabled: boolean;
   encryptionKey: CryptoKey | null;
   
   // UI state
@@ -70,7 +69,6 @@ interface FinancifyStore {
   
   // Encryption actions
   setEncryptionKey: (key: CryptoKey | null) => void;
-  setEncryptionEnabled: (enabled: boolean) => void;
   
   // Split bill history actions
   setSplitBillHistory: (history: SplitBillHistory[]) => void;
@@ -107,7 +105,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   transactions: [],
   importedDraft: [],
   splitBillHistory: [],
-  isEncryptionEnabled: false,
   encryptionKey: null,
   isLoading: false,
   
@@ -134,8 +131,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   
   // Encryption actions
   setEncryptionKey: (encryptionKey) => set({ encryptionKey }),
-  
-  setEncryptionEnabled: (isEncryptionEnabled) => set({ isEncryptionEnabled }),
   
   // Split bill history actions
   setSplitBillHistory: (splitBillHistory) => set({ splitBillHistory: splitBillHistory.map(b => ({
@@ -304,7 +299,7 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   
   // Supabase actions
   loadTransactions: async () => {
-    const { user, isEncryptionEnabled, encryptionKey } = get();
+    const { user, encryptionKey } = get();
     if (!user) return;
     
     
@@ -312,8 +307,8 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
     try {
       let allTransactions: Transaction[] = [];
 
-      // Load encrypted transactions if encryption is enabled and key is available
-      if (isEncryptionEnabled && encryptionKey) {
+      // Always load encrypted transactions if key is available
+      if (encryptionKey) {
         try {
           const { useEncryptedStore } = await import('./encryptedStore');
           const encryptedStore = useEncryptedStore();
@@ -382,13 +377,13 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   },
 
   saveTransactions: async (importedTransactions) => {
-    const { user, transactions, isEncryptionEnabled, encryptionKey } = get();
+    const { user, transactions, encryptionKey } = get();
     if (!user) throw new Error('User not authenticated');
-    
+
     set({ isLoading: true });
     try {
-      // Use encryption if enabled
-      if (isEncryptionEnabled && encryptionKey) {
+      // Always use encryption if key is available
+      if (encryptionKey) {
         const { useEncryptedStore } = await import('./encryptedStore');
         const encryptedStore = useEncryptedStore();
         
@@ -461,13 +456,13 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   },
 
   createTransaction: async (transaction) => {
-    const { user, transactions, isEncryptionEnabled, encryptionKey } = get();
+    const { user, transactions, encryptionKey } = get();
     if (!user) throw new Error('User not authenticated');
 
     set({ isLoading: true });
     try {
-      // Use encryption if enabled
-      if (isEncryptionEnabled && encryptionKey) {
+      // Always use encryption if key is available
+      if (encryptionKey) {
         const { useEncryptedStore } = await import('./encryptedStore');
         const encryptedStore = useEncryptedStore();
         await encryptedStore.createEncryptedTransaction(transaction, encryptionKey);

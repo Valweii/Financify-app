@@ -19,7 +19,6 @@ function generatePassword(length: number = 24): string {
 
 export const FirstTimeEncryption = () => {
   const { setupEncryption } = useEncryption();
-  const { setEncryptionEnabled } = useFinancifyStore();
   const { toast } = useToast();
   const [generated, setGenerated] = useState<string>("");
   const [isSetting, setIsSetting] = useState(false);
@@ -67,7 +66,6 @@ export const FirstTimeEncryption = () => {
           className="btn-primary w-full"
           disabled={!didSetup || isSetting}
           onClick={() => {
-            setEncryptionEnabled(true);
             toast({ title: "Encryption Ready", description: "You can now use the app." });
           }}
         >

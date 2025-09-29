@@ -247,6 +247,7 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
                   amount={formData.type === 'credit' ? parseFloat(formData.amount) : -parseFloat(formData.amount)}
                   showSign
                   size="sm"
+                  transactionType={formData.type}
                 />
               </div>
             </Card>

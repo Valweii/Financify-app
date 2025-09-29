@@ -29,7 +29,6 @@ export const FinancifyApp = () => {
     setSession, 
     loadTransactions, 
     loadProfile,
-    isEncryptionEnabled,
     encryptionKey
   } = useFinancifyStore();
   const { isKeySetup, isKeyLoading } = useEncryption();
@@ -46,7 +45,7 @@ export const FinancifyApp = () => {
           setTimeout(() => {
             loadProfile();
             // Wait for encryption state to be initialized before loading transactions
-            if (!isKeyLoading && (!isEncryptionEnabled || encryptionKey)) {
+            if (!isKeyLoading && encryptionKey) {
               loadTransactions();
             }
           }, 0);
@@ -65,7 +64,7 @@ export const FinancifyApp = () => {
         setTimeout(() => {
           loadProfile();
           // Wait for encryption state to be initialized before loading transactions
-          if (!isKeyLoading && (!isEncryptionEnabled || encryptionKey)) {
+          if (!isKeyLoading && encryptionKey) {
             loadTransactions();
           }
         }, 0);
@@ -73,16 +72,16 @@ export const FinancifyApp = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [setUser, setSession, loadTransactions, loadProfile, isEncryptionEnabled, encryptionKey, isKeyLoading]);
+  }, [setUser, setSession, loadTransactions, loadProfile, encryptionKey, isKeyLoading]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    if (isEncryptionEnabled && encryptionKey) {
+    if (encryptionKey) {
       setTimeout(() => {
         loadTransactions();
       }, 0);
     }
-  }, [isAuthenticated, isEncryptionEnabled, encryptionKey, loadTransactions]);
+  }, [isAuthenticated, encryptionKey, loadTransactions]);
 
   // Set initial scroll position and handle scroll position changes
   useEffect(() => {
@@ -191,7 +190,7 @@ export const FinancifyApp = () => {
   // Show encryption setup/unlock if needed before entering the app
   // Show the gate only when the auto-restore has finished (isKeyLoading === false)
   // and we still have no active key while encryption is enabled or set up.
-  const needsEncryptionGate = isAuthenticated && !isKeyLoading && (!encryptionKey) && (isEncryptionEnabled || isKeySetup);
+  const needsEncryptionGate = isAuthenticated && !isKeyLoading && (!encryptionKey) && isKeySetup;
   if (needsEncryptionGate) {
     return (
       <div className="min-h-screen bg-background">

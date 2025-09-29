@@ -36,7 +36,7 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
     decrypt
   } = useEncryption();
   
-  const { setEncryptionKey, setEncryptionEnabled, loadTransactions, signOut } = useFinancifyStore();
+  const { setEncryptionKey, loadTransactions, signOut } = useFinancifyStore();
 
   // Recovery UI state
   const [isRecoveryOpen, setIsRecoveryOpen] = useState(false);
@@ -77,7 +77,6 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
     if (result.success && result.backupCodes) {
       setBackupCodes(result.backupCodes);
       setShowBackupCodes(true);
-      setEncryptionEnabled(true);
       // currentKey will be set by the hook after setup completes
       
       toast({
@@ -110,7 +109,6 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
     const result = await unlockEncryption(password);
     
     if (result.success) {
-      setEncryptionEnabled(true);
       toast({
         title: "Encryption unlocked",
         description: "Your encrypted data is now accessible.",
@@ -155,7 +153,6 @@ export const EncryptionSetup = ({ onComplete }: EncryptionSetupProps) => {
     const result = await resetWithBackupCode(recoveryCode, newPass1);
     setIsResetting(false);
     if (result.success) {
-      setEncryptionEnabled(true);
       setIsRecoveryOpen(false);
       setRecoveryCode(''); setNewPass1(''); setNewPass2('');
       toast({ title: 'Encryption reset', description: 'Your new password is set. New backup codes have been generated.' });

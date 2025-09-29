@@ -466,6 +466,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                         showSign
                         size="md"
                         animate={false}
+                        transactionType={transaction.type}
                       />
                     </div>
                     <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedTransaction === transaction.id ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
@@ -633,7 +634,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                                 </div>
                               </div>
                               <div className="text-right">
-                                <MoneyDisplay amount={t.amount_cents} showSign size="md" animate={false} />
+                                <MoneyDisplay amount={t.amount_cents} showSign size="md" animate={false} transactionType={t.type} />
                               </div>
                               {expandedTransaction === t.id && (
                                 <div className="col-span-2 mt-2 pt-2 border-t border-border/50">
@@ -875,7 +876,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                        </div>
                      </div>
                      <div className="flex items-center">
-                       <MoneyDisplay amount={t.amount_cents} showSign size="md" animate={false} />
+                       <MoneyDisplay amount={t.amount_cents} showSign size="md" animate={false} transactionType={t.type} />
                      </div>
                    </div>
                    <div className="space-y-2 pt-2 border-t border-border/50 mt-2">

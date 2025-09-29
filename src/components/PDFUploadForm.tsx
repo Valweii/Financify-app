@@ -465,6 +465,7 @@ const TransactionEditItem = ({
               showSign 
               size="sm" 
               animate={false}
+              transactionType={transaction.type}
             />
           </div>
         </div>

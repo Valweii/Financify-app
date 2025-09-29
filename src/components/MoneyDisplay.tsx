@@ -8,6 +8,7 @@ interface MoneyDisplayProps {
   showSign?: boolean;
   size?: "sm" | "md" | "lg" | "xl";
   animate?: boolean;
+  transactionType?: 'credit' | 'debit';
 }
 
 export const MoneyDisplay = ({ 
@@ -16,7 +17,8 @@ export const MoneyDisplay = ({
   className,
   showSign = false,
   size = "md",
-  animate = true
+  animate = true,
+  transactionType
 }: MoneyDisplayProps) => {
   const { currentValue } = useCounterAnimation(amount, {
     duration: 1200,
@@ -47,6 +49,13 @@ export const MoneyDisplay = ({
 
   const getColorClass = () => {
     if (!showSign) return "";
+    
+    // If transactionType is provided, use it for color coding
+    if (transactionType) {
+      return transactionType === 'credit' ? "text-income" : "text-expense";
+    }
+    
+    // Fallback to amount-based color coding
     return amount >= 0 ? "money-positive" : "money-negative";
   };
 
