@@ -109,17 +109,7 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   isLoading: false,
   
   // Actions
-  setUser: (user) => {
-    const { user: currentUser } = get();
-    
-    // Clear encryption data if switching users
-    if (currentUser && user && currentUser.id !== user.id) {
-      // Clear encryption key from store
-      set({ encryptionKey: null });
-    }
-    
-    set({ user, isAuthenticated: !!user });
-  },
+  setUser: (user) => set({ user, isAuthenticated: !!user }),
   
   setSession: (session) => set({ session }),
   
@@ -582,7 +572,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       isAuthenticated: false,
       transactions: [],
       importedDraft: [],
-      encryptionKey: null, // Clear encryption key on logout
     });
   },
   

@@ -135,38 +135,35 @@ export const importRawKey = async (raw: Uint8Array): Promise<CryptoKey> => {
 };
 
 // Create or load a device wrapping key (stored as raw bytes in localStorage)
-const getDeviceWrappingKey = async (userId?: string): Promise<CryptoKey> => {
-  const keyName = userId ? `financify_device_wrap_key_${userId}` : 'financify_device_wrap_key';
-  let rawStr = localStorage.getItem(keyName);
+const getDeviceWrappingKey = async (): Promise<CryptoKey> => {
+  let rawStr = localStorage.getItem('financify_device_wrap_key');
   let raw: Uint8Array;
   if (!rawStr) {
     raw = crypto.getRandomValues(new Uint8Array(32));
-    localStorage.setItem(keyName, JSON.stringify(Array.from(raw)));
+    localStorage.setItem('financify_device_wrap_key', JSON.stringify(Array.from(raw)));
   } else {
     raw = new Uint8Array(JSON.parse(rawStr));
   }
   return crypto.subtle.importKey('raw', raw.buffer as ArrayBuffer, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 };
 
-export const cacheCryptoKey = async (key: CryptoKey, userId?: string): Promise<void> => {
-  const wrappingKey = await getDeviceWrappingKey(userId);
+export const cacheCryptoKey = async (key: CryptoKey): Promise<void> => {
+  const wrappingKey = await getDeviceWrappingKey();
   const raw = await exportRawKey(key);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrappingKey, raw.buffer as ArrayBuffer);
-  const keyName = userId ? `financify_cached_key_${userId}` : 'financify_cached_key';
-  localStorage.setItem(keyName, JSON.stringify({
+  localStorage.setItem('financify_cached_key', JSON.stringify({
     iv: Array.from(iv),
     data: Array.from(new Uint8Array(encrypted))
   }));
 };
 
-export const loadCachedCryptoKey = async (userId?: string): Promise<CryptoKey | null> => {
-  const keyName = userId ? `financify_cached_key_${userId}` : 'financify_cached_key';
-  const stored = localStorage.getItem(keyName);
+export const loadCachedCryptoKey = async (): Promise<CryptoKey | null> => {
+  const stored = localStorage.getItem('financify_cached_key');
   if (!stored) return null;
   try {
     const parsed = JSON.parse(stored);
-    const wrappingKey = await getDeviceWrappingKey(userId);
+    const wrappingKey = await getDeviceWrappingKey();
     const iv = new Uint8Array(parsed.iv);
     const data = new Uint8Array(parsed.data);
     const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, wrappingKey, data);
@@ -180,26 +177,22 @@ export const loadCachedCryptoKey = async (userId?: string): Promise<CryptoKey | 
 /**
  * Store encryption key in browser storage
  */
-export const storeEncryptionKey = (encryptionKey: EncryptionKey, userId?: string): void => {
+export const storeEncryptionKey = (encryptionKey: EncryptionKey): void => {
   const keyData = {
     salt: Array.from(encryptionKey.salt),
     version: encryptionKey.version
   };
   
-  const keyName = userId ? `financify_encryption_key_${userId}` : 'financify_encryption_key';
-  const enabledName = userId ? `financify_encryption_enabled_${userId}` : 'financify_encryption_enabled';
-  
-  localStorage.setItem(keyName, JSON.stringify(keyData));
+  localStorage.setItem('financify_encryption_key', JSON.stringify(keyData));
   // Also store that encryption is enabled
-  localStorage.setItem(enabledName, 'true');
+  localStorage.setItem('financify_encryption_enabled', 'true');
 };
 
 /**
  * Load encryption key data from browser storage
  */
-export const loadEncryptionKeyData = (userId?: string): { salt: number[]; version: number } | null => {
-  const keyName = userId ? `financify_encryption_key_${userId}` : 'financify_encryption_key';
-  const stored = localStorage.getItem(keyName);
+export const loadEncryptionKeyData = (): { salt: number[]; version: number } | null => {
+  const stored = localStorage.getItem('financify_encryption_key');
   if (!stored) return null;
   
   try {
@@ -212,46 +205,33 @@ export const loadEncryptionKeyData = (userId?: string): { salt: number[]; versio
 /**
  * Check if user has encryption key set up
  */
-export const hasEncryptionKey = (userId?: string): boolean => {
-  return loadEncryptionKeyData(userId) !== null;
+export const hasEncryptionKey = (): boolean => {
+  return loadEncryptionKeyData() !== null;
 };
 
 /**
  * Clear encryption key from storage
  */
-export const clearEncryptionKey = (userId?: string): void => {
-  const keyName = userId ? `financify_encryption_key_${userId}` : 'financify_encryption_key';
-  const enabledName = userId ? `financify_encryption_enabled_${userId}` : 'financify_encryption_enabled';
-  const cachedName = userId ? `financify_cached_key_${userId}` : 'financify_cached_key';
-  const verifierName = userId ? `financify_key_verifier_${userId}` : 'financify_key_verifier';
-  const backupName = userId ? `financify_backup_codes_${userId}` : 'financify_backup_codes';
-  const encryptedKeyName = userId ? `financify_encrypted_original_key_${userId}` : 'financify_encrypted_original_key';
-  
-  localStorage.removeItem(keyName);
-  localStorage.removeItem(enabledName);
-  localStorage.removeItem(cachedName);
-  localStorage.removeItem(verifierName);
-  localStorage.removeItem(backupName);
-  localStorage.removeItem(encryptedKeyName);
+export const clearEncryptionKey = (): void => {
+  localStorage.removeItem('financify_encryption_key');
+  localStorage.removeItem('financify_encryption_enabled');
 };
 
 /**
  * Check if encryption is enabled (persisted state)
  */
-export const isEncryptionEnabled = (userId?: string): boolean => {
-  const enabledName = userId ? `financify_encryption_enabled_${userId}` : 'financify_encryption_enabled';
-  return localStorage.getItem(enabledName) === 'true';
+export const isEncryptionEnabled = (): boolean => {
+  return localStorage.getItem('financify_encryption_enabled') === 'true';
 };
 
 /**
  * Set encryption enabled state
  */
-export const setEncryptionEnabled = (enabled: boolean, userId?: string): void => {
-  const enabledName = userId ? `financify_encryption_enabled_${userId}` : 'financify_encryption_enabled';
+export const setEncryptionEnabled = (enabled: boolean): void => {
   if (enabled) {
-    localStorage.setItem(enabledName, 'true');
+    localStorage.setItem('financify_encryption_enabled', 'true');
   } else {
-    localStorage.removeItem(enabledName);
+    localStorage.removeItem('financify_encryption_enabled');
   }
 };
 
@@ -274,17 +254,15 @@ export const generateBackupCodes = (): string[] => {
 /**
  * Store backup codes
  */
-export const storeBackupCodes = (codes: string[], userId?: string): void => {
-  const backupName = userId ? `financify_backup_codes_${userId}` : 'financify_backup_codes';
-  localStorage.setItem(backupName, JSON.stringify(codes));
+export const storeBackupCodes = (codes: string[]): void => {
+  localStorage.setItem('financify_backup_codes', JSON.stringify(codes));
 };
 
 /**
  * Load backup codes
  */
-export const loadBackupCodes = (userId?: string): string[] | null => {
-  const backupName = userId ? `financify_backup_codes_${userId}` : 'financify_backup_codes';
-  const stored = localStorage.getItem(backupName);
+export const loadBackupCodes = (): string[] | null => {
+  const stored = localStorage.getItem('financify_backup_codes');
   if (!stored) return null;
   
   try {
@@ -326,7 +304,7 @@ export const deriveKeyFromBackupCode = async (backupCode: string): Promise<Crypt
 /**
  * Store the original encryption key encrypted with backup codes
  */
-export const storeEncryptedOriginalKey = async (originalKey: CryptoKey, backupCodes: string[], userId?: string): Promise<void> => {
+export const storeEncryptedOriginalKey = async (originalKey: CryptoKey, backupCodes: string[]): Promise<void> => {
   try {
     // Export the original key as raw bytes
     const rawKey = await exportRawKey(originalKey);
@@ -341,8 +319,7 @@ export const storeEncryptedOriginalKey = async (originalKey: CryptoKey, backupCo
     );
     
     // Store in localStorage
-    const encryptedKeyName = userId ? `financify_encrypted_original_key_${userId}` : 'financify_encrypted_original_key';
-    localStorage.setItem(encryptedKeyName, JSON.stringify(encryptedKeys));
+    localStorage.setItem('financify_encrypted_original_key', JSON.stringify(encryptedKeys));
   } catch (error) {
     console.error('Failed to store encrypted original key:', error);
   }
@@ -351,10 +328,9 @@ export const storeEncryptedOriginalKey = async (originalKey: CryptoKey, backupCo
 /**
  * Restore the original encryption key using a backup code
  */
-export const restoreOriginalKeyWithBackupCode = async (backupCode: string, userId?: string): Promise<CryptoKey | null> => {
+export const restoreOriginalKeyWithBackupCode = async (backupCode: string): Promise<CryptoKey | null> => {
   try {
-    const encryptedKeyName = userId ? `financify_encrypted_original_key_${userId}` : 'financify_encrypted_original_key';
-    const stored = localStorage.getItem(encryptedKeyName);
+    const stored = localStorage.getItem('financify_encrypted_original_key');
     if (!stored) return null;
     
     const encryptedKeys = JSON.parse(stored);
@@ -373,75 +349,4 @@ export const restoreOriginalKeyWithBackupCode = async (backupCode: string, userI
     console.error('Failed to restore original key:', error);
     return null;
   }
-};
-
-/**
- * Migration functions for backward compatibility
- */
-
-/**
- * Migrate global encryption keys to user-specific keys
- */
-export const migrateToUserSpecificKeys = (userId: string): void => {
-  if (!userId) return;
-  
-  // List of keys to migrate
-  const keysToMigrate = [
-    'financify_encryption_key',
-    'financify_encryption_enabled',
-    'financify_cached_key',
-    'financify_key_verifier',
-    'financify_backup_codes',
-    'financify_encrypted_original_key',
-    'financify_device_wrap_key'
-  ];
-  
-  keysToMigrate.forEach(keyName => {
-    const globalValue = localStorage.getItem(keyName);
-    if (globalValue) {
-      const userSpecificKey = `${keyName}_${userId}`;
-      localStorage.setItem(userSpecificKey, globalValue);
-      // Keep global key for now to avoid breaking existing sessions
-      // localStorage.removeItem(keyName); // Uncomment after migration is complete
-    }
-  });
-};
-
-/**
- * Check if user has migrated keys
- */
-export const hasUserMigratedKeys = (userId: string): boolean => {
-  if (!userId) return false;
-  return localStorage.getItem(`financify_encryption_key_${userId}`) !== null;
-};
-
-/**
- * Get user-specific key name with fallback to global
- */
-export const getUserSpecificKeyName = (baseKey: string, userId?: string): string => {
-  if (userId) {
-    return `${baseKey}_${userId}`;
-  }
-  return baseKey;
-};
-
-/**
- * Clear all user-specific encryption data (for user switching)
- */
-export const clearUserEncryptionData = (userId: string): void => {
-  if (!userId) return;
-  
-  const keysToRemove = [
-    `financify_encryption_key_${userId}`,
-    `financify_encryption_enabled_${userId}`,
-    `financify_cached_key_${userId}`,
-    `financify_key_verifier_${userId}`,
-    `financify_backup_codes_${userId}`,
-    `financify_encrypted_original_key_${userId}`,
-    `financify_device_wrap_key_${userId}`
-  ];
-  
-  keysToRemove.forEach(key => {
-    localStorage.removeItem(key);
-  });
 };

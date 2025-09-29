@@ -25,8 +25,6 @@ import {
   deriveKeyFromBackupCode,
   isEncryptionEnabled as isEncryptionEnabledLocal,
   setEncryptionEnabled as setEncryptionEnabledLocal,
-  migrateToUserSpecificKeys,
-  hasUserMigratedKeys,
   type EncryptionKey,
   type EncryptedData
 } from '@/lib/encryption';
@@ -145,63 +143,51 @@ export const useEncryption = (): UseEncryptionReturn => {
   const [isKeySetup, setIsKeySetup] = useState(false);
   const [isKeyLoading, setIsKeyLoading] = useState(true);
   const [currentKey, setCurrentKey] = useState<CryptoKey | null>(null);
-  const { setEncryptionKey, user } = useFinancifyStore();
+  const { setEncryptionKey } = useFinancifyStore();
 
   // Check if encryption key is set up on mount and sync encryption state
   useEffect(() => {
     const checkKeySetup = async () => {
-      if (!user) {
-        setIsKeyLoading(false);
-        return;
-      }
-
-      // Migrate global keys to user-specific keys if needed
-      if (!hasUserMigratedKeys(user.id)) {
-        migrateToUserSpecificKeys(user.id);
-      }
       
-      const hasKey = hasEncryptionKey(user.id);
-      const encryptionEnabled = isEncryptionEnabledLocal(user.id);
+      const hasKey = hasEncryptionKey();
+      const encryptionEnabled = isEncryptionEnabledLocal();
+      
       
       setIsKeySetup(hasKey);
       
       // If we have a key and encryption is enabled, try to restore the cached key immediately
       if (hasKey && encryptionEnabled) {
         try {
-          const cached = await loadCachedCryptoKey(user.id);
+          const cached = await loadCachedCryptoKey();
           if (cached) {
             setCurrentKey(cached);
             setEncryptionKey(cached);
           } else {
             // Key exists but cache is missing, encryption is disabled
-            setEncryptionEnabledLocal(false, user.id);
+            setEncryptionEnabledLocal(false);
           }
         } catch (error) {
           console.error('❌ Failed to restore cached key:', error);
-          setEncryptionEnabledLocal(false, user.id);
+          setEncryptionEnabledLocal(false);
         }
       }
       
       setIsKeyLoading(false);
     };
     checkKeySetup();
-  }, [setEncryptionKey, user]);
+  }, [setEncryptionKey]);
 
 
   // Setup encryption with password
   const setupEncryption = useCallback(async (password: string): Promise<{ success: boolean; backupCodes?: string[]; error?: string }> => {
     try {
-      if (!user) {
-        return { success: false, error: 'User not authenticated' };
-      }
-
       setIsKeyLoading(true);
       
       // Generate new encryption key
       const encryptionKey = await generateEncryptionKey(password);
       
-      // Store key data (salt + version) with user ID
-      storeEncryptionKey(encryptionKey, user.id);
+      // Store key data (salt + version)
+      storeEncryptionKey(encryptionKey);
       
       // Create and store a verifier encrypted with the derived key for future password validation
       try {
@@ -211,17 +197,17 @@ export const useEncryption = (): UseEncryptionReturn => {
           n: Math.random(),
         };
         const verifierEncrypted = await encryptData(verifierPlain, encryptionKey.key);
-        localStorage.setItem(`financify_key_verifier_${user.id}`, JSON.stringify(verifierEncrypted));
+        localStorage.setItem('financify_key_verifier', JSON.stringify(verifierEncrypted));
       } catch (e) {
         console.warn('Failed to persist verifier:', e);
       }
 
       // Generate and store backup codes
       const backupCodes = generateBackupCodes();
-      storeBackupCodes(backupCodes, user.id);
+      storeBackupCodes(backupCodes);
       
       // Store the original encryption key encrypted with backup codes
-      await storeEncryptedOriginalKey(encryptionKey.key, backupCodes, user.id);
+      await storeEncryptedOriginalKey(encryptionKey.key, backupCodes);
       
       // Store backup code hashes and encrypted original key in Supabase for cross-device recovery
       await storeBackupCodeHashes(backupCodes, encryptionKey.key);
@@ -230,10 +216,10 @@ export const useEncryption = (): UseEncryptionReturn => {
       setCurrentKey(encryptionKey.key);
       setIsKeySetup(true);
       
-      try { await cacheCryptoKey(encryptionKey.key, user.id); } catch {}
+      try { await cacheCryptoKey(encryptionKey.key); } catch {}
       try { 
         setEncryptionKey(encryptionKey.key); 
-        setEncryptionEnabledLocal(true, user.id); // Persist to localStorage
+        setEncryptionEnabledLocal(true); // Persist to localStorage
       } catch {}
       return { success: true, backupCodes };
     } catch (error) {
@@ -242,18 +228,14 @@ export const useEncryption = (): UseEncryptionReturn => {
     } finally {
       setIsKeyLoading(false);
     }
-  }, [user, setEncryptionKey]);
+  }, []);
 
   // Unlock encryption with password
   const unlockEncryption = useCallback(async (password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       setIsKeyLoading(true);
       
-      if (!user) {
-        return { success: false, error: 'User not authenticated' };
-      }
-
-      const keyData = loadEncryptionKeyData(user.id);
+      const keyData = loadEncryptionKeyData();
       if (!keyData) {
         return { success: false, error: 'No encryption key found' };
       }
@@ -262,7 +244,7 @@ export const useEncryption = (): UseEncryptionReturn => {
       const key = await recreateEncryptionKey(password, new Uint8Array(keyData.salt));
       
       // Validate key against stored verifier
-      const storedVerifier = localStorage.getItem(`financify_key_verifier_${user.id}`);
+      const storedVerifier = localStorage.getItem('financify_key_verifier');
       let isValid = false;
       if (!storedVerifier) {
         // Backward-compat path: no verifier stored yet (older clients). Validate by round-trip
@@ -275,7 +257,7 @@ export const useEncryption = (): UseEncryptionReturn => {
           if (isValid) {
             const verifierPlain = { t: 'financify_key_verifier', ts: Date.now(), n: Math.random() };
             const verifierEncrypted = await encryptData(verifierPlain, key);
-            localStorage.setItem(`financify_key_verifier_${user.id}`, JSON.stringify(verifierEncrypted));
+            localStorage.setItem('financify_key_verifier', JSON.stringify(verifierEncrypted));
           }
         } catch (e) {
           isValid = false;
@@ -295,10 +277,10 @@ export const useEncryption = (): UseEncryptionReturn => {
       
       // Set current key only if validation passes
       setCurrentKey(key);
-      try { await cacheCryptoKey(key, user.id); } catch {}
+      try { await cacheCryptoKey(key); } catch {}
       try { 
         setEncryptionKey(key); 
-        setEncryptionEnabledLocal(true, user.id); // Persist to localStorage
+        setEncryptionEnabledLocal(true); // Persist to localStorage
       } catch {}
       
       return { success: true };
@@ -312,15 +294,11 @@ export const useEncryption = (): UseEncryptionReturn => {
 
   // Clear encryption
   const clearEncryption = useCallback(() => {
-    if (user) {
-      clearEncryptionKey(user.id);
-    }
+    clearEncryptionKey();
     setCurrentKey(null);
     setIsKeySetup(false);
-    if (user) {
-      setEncryptionEnabledLocal(false, user.id); // Clear from localStorage
-    }
-  }, [user]);
+    setEncryptionEnabledLocal(false); // Clear from localStorage
+  }, []);
 
   // Encrypt data
   const encrypt = useCallback(async (data: any): Promise<EncryptedData | null> => {
@@ -354,23 +332,17 @@ export const useEncryption = (): UseEncryptionReturn => {
 
   // Get backup codes
   const getBackupCodes = useCallback((): string[] | null => {
-    return user ? loadBackupCodes(user.id) : null;
-  }, [user]);
+    return loadBackupCodes();
+  }, []);
 
   // Clear backup codes
   const clearBackupCodes = useCallback(() => {
-    if (user) {
-      localStorage.removeItem(`financify_backup_codes_${user.id}`);
-    }
-  }, [user]);
+    localStorage.removeItem('financify_backup_codes');
+  }, []);
 
   // Reset encryption using a backup code
   const resetWithBackupCode = useCallback(async (code: string, newPassword: string): Promise<{ success: boolean; backupCodes?: string[]; error?: string }> => {
     try {
-      if (!user) {
-        return { success: false, error: 'User not authenticated' };
-      }
-
       setIsKeyLoading(true);
       const normalized = (code || '').toString().replace(/\s+/g, '');
       
@@ -382,7 +354,7 @@ export const useEncryption = (): UseEncryptionReturn => {
       let restoredKey: CryptoKey | null = null;
       
       // First try local restoration
-      restoredKey = await restoreOriginalKeyWithBackupCode(normalized, user.id);
+      restoredKey = await restoreOriginalKeyWithBackupCode(normalized);
       
       // If not found locally, try Supabase restoration (for cross-device recovery)
       if (!restoredKey) {
@@ -402,40 +374,40 @@ export const useEncryption = (): UseEncryptionReturn => {
         // Update the verifier with the restored key
         const verifierPlain = { t: 'financify_key_verifier', ts: Date.now(), n: Math.random() };
         const verifierEncrypted = await encryptData(verifierPlain, restoredKey);
-        localStorage.setItem(`financify_key_verifier_${user.id}`, JSON.stringify(verifierEncrypted));
+        localStorage.setItem('financify_key_verifier', JSON.stringify(verifierEncrypted));
         
         // Generate new backup codes and store them
         const newCodes = generateBackupCodes();
-        storeBackupCodes(newCodes, user.id);
+        storeBackupCodes(newCodes);
         
         // Store the restored original key encrypted with new backup codes
-        await storeEncryptedOriginalKey(restoredKey, newCodes, user.id);
+        await storeEncryptedOriginalKey(restoredKey, newCodes);
         
         // Store new backup code hashes and encrypted key in Supabase
         await storeBackupCodeHashes(newCodes, restoredKey);
         
         // Set encryption state to enabled and key in store
         setEncryptionKey(restoredKey);
-        setEncryptionEnabledLocal(true, user.id);
+        setEncryptionEnabledLocal(true);
         
         // Cache the restored key for future page reloads
-        await cacheCryptoKey(restoredKey, user.id);
+        await cacheCryptoKey(restoredKey);
         
         return { success: true, backupCodes: newCodes };
       } else {
         // Fallback: create new key if original key restoration fails
         const newEncKey = await generateEncryptionKey(newPassword);
-        storeEncryptionKey(newEncKey, user.id);
+        storeEncryptionKey(newEncKey);
 
         const verifierPlain = { t: 'financify_key_verifier', ts: Date.now(), n: Math.random() };
         const verifierEncrypted = await encryptData(verifierPlain, newEncKey.key);
-        localStorage.setItem(`financify_key_verifier_${user.id}`, JSON.stringify(verifierEncrypted));
+        localStorage.setItem('financify_key_verifier', JSON.stringify(verifierEncrypted));
 
         const newCodes = generateBackupCodes();
-        storeBackupCodes(newCodes, user.id);
+        storeBackupCodes(newCodes);
         
         // Store the new key encrypted with new backup codes
-        await storeEncryptedOriginalKey(newEncKey.key, newCodes, user.id);
+        await storeEncryptedOriginalKey(newEncKey.key, newCodes);
         
         // Store new backup code hashes and encrypted key in Supabase
         await storeBackupCodeHashes(newCodes, newEncKey.key);
@@ -445,10 +417,10 @@ export const useEncryption = (): UseEncryptionReturn => {
         
         // Set encryption state to enabled and key in store
         setEncryptionKey(newEncKey.key);
-        setEncryptionEnabledLocal(true, user.id);
+        setEncryptionEnabledLocal(true);
         
         // Cache the new key for future page reloads
-        await cacheCryptoKey(newEncKey.key, user.id);
+        await cacheCryptoKey(newEncKey.key);
         
         return { success: true, backupCodes: newCodes };
       }
