@@ -1097,7 +1097,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
               <div className="flex gap-3 pt-4 border-t border-border">
                    <Button
                   onClick={handleEditTransaction}
-                  className="flex-1 rounded-full border-2 bg-background text-foreground border-muted hover:bg-yellow-300 transition-colors hover:text-muted"
+                  className="flex-1 rounded-full border-2 bg-background text-foreground border-muted hover:bg-muted transition-colors"
                 >
                   Edit
                 </Button>

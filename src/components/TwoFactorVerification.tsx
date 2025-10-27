@@ -41,7 +41,8 @@ export const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
           description: "Two-factor authentication verified successfully.",
         });
         onSuccess();
-        onClose();
+        // Don't call onClose() here - let the parent component handle the dialog state
+        // This prevents the dialog from closing prematurely or triggering cancel handlers
       } else {
         toast({
           title: "Invalid Code",
@@ -74,7 +75,8 @@ export const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
           description: "You have successfully signed in using a backup code.",
         });
         onSuccess();
-        onClose();
+        // Don't call onClose() here - let the parent component handle the dialog state
+        // This prevents the dialog from closing prematurely or triggering cancel handlers
       } else {
         toast({
           title: "Invalid Backup Code",
@@ -107,7 +109,7 @@ export const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="w-5 h-5" />

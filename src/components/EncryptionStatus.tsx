@@ -123,16 +123,18 @@ export const EncryptionStatus = () => {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <CheckCircle className="w-4 h-4 text-green-500" />
-          <span className="text-sm text-green-600 font-medium">Protected</span>
-        </div>
+        {isKeySetup && (
+                    <div className="flex items-center gap-1 text-xs text-success px-2 py-1 bg-success/10 rounded-full">
+                      <div className="w-2 h-2 bg-success rounded-full"></div>
+                      <span>Encrypted</span>
+                    </div>
+                  )}
       </div>
 
       <Alert>
         <Shield className="h-4 w-4" />
         <AlertDescription>
-          Your financial data is encrypted with AES-256-GCM. Only you can decrypt and view your data.
+          Your data is encrypted with AES-256-GCM.
         </AlertDescription>
       </Alert>
 
