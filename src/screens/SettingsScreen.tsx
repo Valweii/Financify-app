@@ -20,6 +20,7 @@ export const SettingsScreen = () => {
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
   const [isSecurityExpanded, setIsSecurityExpanded] = useState(false);
 
   useEffect(() => {
@@ -30,8 +31,13 @@ export const SettingsScreen = () => {
   }, [theme]);
 
   const handleSignOut = async () => {
+    setIsSignOutConfirmOpen(true);
+  };
+
+  const confirmSignOut = async () => {
     try {
       await signOut();
+      setIsSignOutConfirmOpen(false);
     } catch (error) {
       // Error signing out
     }
@@ -237,16 +243,46 @@ export const SettingsScreen = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Sign Out Confirmation Dialog */}
+      <Dialog open={isSignOutConfirmOpen} onOpenChange={setIsSignOutConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Sign Out</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-muted-foreground text-center">
+              Are you sure you want to sign out? You'll need to sign in again to access your account.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsSignOutConfirmOpen(false)}
+              className="mt-4"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={confirmSignOut}
+            >
+              Sign Out
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Sign Out */}
       {user && (
-        <Button 
-          variant="destructive" 
-          onClick={handleSignOut}
-          className="w-full"
-        >
-          <LogOut className="w-4 h-4 mr-2" />
-          Sign Out
-        </Button>
+        <div className="flex justify-center">
+          <Button 
+            onClick={handleSignOut}
+            className="w-fit bg-background text-foreground"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </Button>
+        </div>
       )}
     </div>
   );
