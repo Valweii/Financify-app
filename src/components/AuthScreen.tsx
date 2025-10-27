@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Eye, EyeOff } from "lucide-react";
+import { TwoFactorVerification } from "@/components/TwoFactorVerification";
+import { useFinancifyStore } from "@/store";
 
 interface AuthScreenProps {
   onAuthSuccess: () => void;
@@ -18,7 +20,9 @@ export const AuthScreen = ({ onAuthSuccess }: AuthScreenProps) => {
   const [fullName, setFullName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isTwoFactorRequired, setIsTwoFactorRequired] = useState(false);
   const { toast } = useToast();
+  const { checkTwoFactorSetup } = useFinancifyStore();
   const redirectUrl = `${window.location.origin}/`;
 
   const handleResend = async () => {
@@ -71,11 +75,20 @@ export const AuthScreen = ({ onAuthSuccess }: AuthScreenProps) => {
 
         if (error) throw error;
         
-        toast({
-          title: "Welcome back!",
-          description: "You have successfully signed in.",
-        });
-        onAuthSuccess();
+        // Check if 2FA is required for this user
+        const isTwoFactorSetup = await checkTwoFactorSetup();
+        
+        if (isTwoFactorSetup) {
+          // User has 2FA enabled, show verification screen
+          setIsTwoFactorRequired(true);
+        } else {
+          // User doesn't have 2FA setup, proceed normally
+          toast({
+            title: "Welcome back!",
+            description: "You have successfully signed in.",
+          });
+          onAuthSuccess();
+        }
       } else {
         const { error } = await supabase.auth.signUp({
           email,
@@ -131,6 +144,21 @@ export const AuthScreen = ({ onAuthSuccess }: AuthScreenProps) => {
     setEmail("");
     setPassword("");
     setFullName("");
+  };
+
+  const handleTwoFactorVerified = () => {
+    setIsTwoFactorRequired(false);
+    toast({
+      title: "Welcome back!",
+      description: "You have successfully signed in.",
+    });
+    onAuthSuccess();
+  };
+
+  const handleTwoFactorCancel = () => {
+    setIsTwoFactorRequired(false);
+    // Sign out the user since they didn't complete 2FA
+    supabase.auth.signOut();
   };
 
   return (
@@ -301,6 +329,14 @@ export const AuthScreen = ({ onAuthSuccess }: AuthScreenProps) => {
           </p>
         </div>
       </div>
+
+      {/* Two-Factor Authentication Verification */}
+      <TwoFactorVerification
+        isOpen={isTwoFactorRequired}
+        onClose={handleTwoFactorCancel}
+        onSuccess={handleTwoFactorVerified}
+        onBackupCode={() => {}}
+      />
     </div>
   );
 };

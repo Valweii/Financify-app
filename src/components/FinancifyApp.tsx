@@ -8,6 +8,7 @@ import { AuthScreen } from "./AuthScreen";
 import { FloatingActionButton } from "./FloatingActionButton";
 import { TransactionInputDialog } from "./TransactionInputDialog";
 import { EncryptionRecovery } from "./EncryptionRecovery";
+import { MandatoryTwoFactorSetup } from "./MandatoryTwoFactorSetup";
 import { useFinancifyStore } from "@/store";
 import { supabase } from "@/integrations/supabase/client";
 import { useEncryption } from "@/hooks/useEncryption";
@@ -27,6 +28,7 @@ export const FinancifyApp = () => {
   const [isInitializingEncryption, setIsInitializingEncryption] = useState(false);
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
   const [showBackupCodes, setShowBackupCodes] = useState(false);
+  const [showMandatoryTwoFactorSetup, setShowMandatoryTwoFactorSetup] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -38,7 +40,9 @@ export const FinancifyApp = () => {
     loadTransactions, 
     loadProfile,
     encryptionKey,
-    setEncryptionKey
+    setEncryptionKey,
+    twoFactorSetupRequired,
+    checkTwoFactorSetup
   } = useFinancifyStore();
   const { isKeySetup, isKeyLoading, initializeAutoEncryption } = useEncryption();
 
@@ -105,7 +109,7 @@ export const FinancifyApp = () => {
           if (result.success && result.backupCodes) {
             setBackupCodes(result.backupCodes);
             setShowBackupCodes(true);
-            setEncryptionKey(result.key!);
+            // Note: initializeAutoEncryption sets the encryption key internally
             await loadTransactions();
             
             toast({
@@ -137,6 +141,31 @@ export const FinancifyApp = () => {
 
     handleEncryptionInitialization();
   }, [isAuthenticated, isKeyLoading, encryptionKey, isKeySetup, initializeAutoEncryption, setEncryptionKey, loadTransactions, toast]);
+
+  // Check for mandatory 2FA setup
+  useEffect(() => {
+    const checkMandatoryTwoFactor = async () => {
+      if (!isAuthenticated || !user) return;
+      
+      try {
+        const isTwoFactorSetup = await checkTwoFactorSetup();
+        if (!isTwoFactorSetup) {
+          // User needs to set up 2FA
+          setShowMandatoryTwoFactorSetup(true);
+        }
+      } catch (error) {
+        // Silently handle errors (e.g., if table doesn't exist yet)
+      }
+    };
+
+    checkMandatoryTwoFactor();
+  }, [isAuthenticated, user, checkTwoFactorSetup]);
+
+  const handleMandatoryTwoFactorComplete = () => {
+    setShowMandatoryTwoFactorSetup(false);
+    // Reload transactions after 2FA setup
+    loadTransactions();
+  };
 
   const handleEncryptionRecoverySuccess = async () => {
     setShowEncryptionRecovery(false);
@@ -407,6 +436,11 @@ export const FinancifyApp = () => {
         isOpen={showEncryptionRecovery}
         onClose={() => setShowEncryptionRecovery(false)}
         onSuccess={handleEncryptionRecoverySuccess}
+      />
+
+      <MandatoryTwoFactorSetup
+        isOpen={showMandatoryTwoFactorSetup}
+        onComplete={handleMandatoryTwoFactorComplete}
       />
 
     </div>

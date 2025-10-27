@@ -59,6 +59,7 @@ interface FinancifyStore {
   twoFactorEnabled: boolean;
   twoFactorSecret: string | null;
   twoFactorBackupCodes: string[];
+  twoFactorSetupRequired: boolean;
   
   // UI state
   isLoading: boolean;
@@ -79,10 +80,12 @@ interface FinancifyStore {
   setTwoFactorEnabled: (enabled: boolean) => void;
   setTwoFactorSecret: (secret: string | null) => void;
   setTwoFactorBackupCodes: (codes: string[]) => void;
+  setTwoFactorSetupRequired: (required: boolean) => void;
   loadTwoFactorSettings: () => Promise<void>;
   saveTwoFactorSettings: (secret: string, backupCodes: string[]) => Promise<void>;
   verifyTwoFactorToken: (token: string) => Promise<boolean>;
   useBackupCode: (code: string) => Promise<boolean>;
+  checkTwoFactorSetup: () => Promise<boolean>;
   
   // Split bill history actions
   setSplitBillHistory: (history: SplitBillHistory[]) => void;
@@ -124,6 +127,7 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   twoFactorEnabled: false,
   twoFactorSecret: null,
   twoFactorBackupCodes: [],
+  twoFactorSetupRequired: false,
   isLoading: false,
   
   // Actions
@@ -156,6 +160,8 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   setTwoFactorSecret: (secret) => set({ twoFactorSecret: secret }),
   
   setTwoFactorBackupCodes: (codes) => set({ twoFactorBackupCodes: codes }),
+  
+  setTwoFactorSetupRequired: (required) => set({ twoFactorSetupRequired: required }),
   
   loadTwoFactorSettings: async () => {
     const { user } = get();
@@ -253,6 +259,36 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       
       set({ twoFactorBackupCodes: updatedCodes });
       return true;
+    } catch (error) {
+      return false;
+    }
+  },
+  
+  checkTwoFactorSetup: async () => {
+    const { user } = get();
+    if (!user) {
+      return false;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('user_two_factor')
+        .select('enabled')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        // Error checking 2FA setup
+        return false;
+      }
+      
+      const isSetup = data?.enabled === true;
+      set({ 
+        twoFactorEnabled: isSetup,
+        twoFactorSetupRequired: !isSetup
+      });
+      
+      return isSetup;
     } catch (error) {
       return false;
     }

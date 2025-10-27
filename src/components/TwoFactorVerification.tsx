@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -113,6 +113,9 @@ export const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
             <Shield className="w-5 h-5" />
             Two-Factor Authentication
           </DialogTitle>
+          <DialogDescription>
+            Enter the 6-digit code from your authenticator app to complete sign in.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

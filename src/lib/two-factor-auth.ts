@@ -16,16 +16,34 @@ export interface TwoFactorAuthConfig {
  * Generate a new TOTP secret for 2FA setup
  */
 export const generateTwoFactorSecret = (config: TwoFactorAuthConfig): TwoFactorAuthSecret => {
-  const secret = TOTP.randomSecret();
-  
-  const otpauthUrl = `otpauth://totp/${encodeURIComponent(config.accountName)}?secret=${secret}&issuer=${encodeURIComponent(config.issuer)}`;
-  const manualEntryKey = secret;
+  try {
+    // Generate a random secret manually since jsotp doesn't have randomSecret()
+    const secret = generateRandomSecret();
+    
+    const otpauthUrl = `otpauth://totp/${encodeURIComponent(config.accountName)}?secret=${secret}&issuer=${encodeURIComponent(config.issuer)}`;
+    const manualEntryKey = secret;
 
-  return {
-    secret,
-    qrCodeUrl: otpauthUrl,
-    manualEntryKey,
-  };
+    return {
+      secret,
+      qrCodeUrl: otpauthUrl,
+      manualEntryKey,
+    };
+  } catch (error) {
+    console.error('Error generating TOTP secret:', error);
+    throw new Error('Failed to generate TOTP secret');
+  }
+};
+
+/**
+ * Generate a random secret for TOTP
+ */
+const generateRandomSecret = (): string => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let result = '';
+  for (let i = 0; i < 32; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 };
 
 /**
@@ -43,6 +61,7 @@ export const generateQRCodeDataURL = async (otpauthUrl: string): Promise<string>
     });
     return qrCodeDataURL;
   } catch (error) {
+    console.error('Error generating QR code:', error);
     throw new Error('Failed to generate QR code');
   }
 };

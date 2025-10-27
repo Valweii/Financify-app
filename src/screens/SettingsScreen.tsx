@@ -10,10 +10,9 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { EncryptionStatus } from "@/components/EncryptionStatus";
 import { useEncryption } from "@/hooks/useEncryption";
-import { TwoFactorSetup } from "@/components/TwoFactorSetup";
 
 export const SettingsScreen = () => {
-  const { user, profile, signOut, setProfile, twoFactorEnabled, loadTwoFactorSettings } = useFinancifyStore();
+  const { user, profile, signOut, setProfile } = useFinancifyStore();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'light');
   const { isKeySetup, isKeyLoading } = useEncryption();
   const { toast } = useToast();
@@ -22,7 +21,6 @@ export const SettingsScreen = () => {
   const [email, setEmail] = useState(user?.email || "");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
-  const [isTwoFactorSetupOpen, setIsTwoFactorSetupOpen] = useState(false);
   const [isSecurityExpanded, setIsSecurityExpanded] = useState(false);
 
   useEffect(() => {
@@ -31,15 +29,6 @@ export const SettingsScreen = () => {
     else root.classList.remove('dark');
     localStorage.setItem('theme', theme);
   }, [theme]);
-
-  // Load 2FA settings when component mounts
-  useEffect(() => {
-    if (user) {
-      loadTwoFactorSettings().catch(() => {
-        // Silently handle errors (e.g., if table doesn't exist yet)
-      });
-    }
-  }, [user, loadTwoFactorSettings]);
 
   const handleSignOut = async () => {
     setIsSignOutConfirmOpen(true);
@@ -52,17 +41,6 @@ export const SettingsScreen = () => {
     } catch (error) {
       // Error signing out
     }
-  };
-
-  const handleTwoFactorSetup = () => {
-    setIsTwoFactorSetupOpen(true);
-  };
-
-  const handleTwoFactorSuccess = () => {
-    toast({
-      title: "2FA Enabled",
-      description: "Two-factor authentication has been successfully enabled.",
-    });
   };
 
   const settingsItems = [
@@ -82,13 +60,6 @@ export const SettingsScreen = () => {
       title: "Appearance",
       description: "Toggle dark mode",
       action: () => {},
-      disabled: false
-    },
-    {
-      icon: Shield,
-      title: "Two-Factor Authentication",
-      description: twoFactorEnabled ? "2FA is enabled" : "Enable 2FA for extra security",
-      action: handleTwoFactorSetup,
       disabled: false
     },
     {
@@ -300,13 +271,6 @@ export const SettingsScreen = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Two-Factor Authentication Setup */}
-      <TwoFactorSetup
-        isOpen={isTwoFactorSetupOpen}
-        onClose={() => setIsTwoFactorSetupOpen(false)}
-        onSuccess={handleTwoFactorSuccess}
-      />
 
       {/* Sign Out */}
       {user && (
