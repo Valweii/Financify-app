@@ -3,12 +3,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Upload, FileText, AlertCircle, CheckCircle, Edit2, Trash2, Save, X } from "lucide-react";
+import { Upload, FileText, AlertCircle, CheckCircle, Edit2, Trash2, DollarSign, Tag, Calendar } from "lucide-react";
 import { useFinancifyStore } from "@/store";
 import { toast } from "@/components/ui/use-toast";
 import { parseBcaStatementPdf } from "@/lib/bca-pdf-parser";
+import { categorizeTransactionsWithAI } from "@/lib/ai-categorizer";
 import { MoneyDisplay } from "./MoneyDisplay";
 import type { ImportedTransaction } from "@/store";
 
@@ -23,9 +25,13 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [detectedTransactions, setDetectedTransactions] = useState<ImportedTransaction[]>([]);
-  const [editingTransaction, setEditingTransaction] = useState<string | null>(null);
+  const [editingTransactionIndex, setEditingTransactionIndex] = useState<number | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editData, setEditData] = useState<ImportedTransaction | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isCategorizing, setIsCategorizing] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [transactionToDeleteIndex, setTransactionToDeleteIndex] = useState<number | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -61,30 +67,54 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
         return;
       }
 
-      // Show detected transactions for review
-      setDetectedTransactions(transactions);
+      // Automatically categorize transactions using AI
+      setIsCategorizing(true);
+      const categorizedTransactions = await categorizeTransactions(transactions);
+      setIsCategorizing(false);
+      
+      // Show detected and categorized transactions for review
+      setDetectedTransactions(categorizedTransactions);
       
       toast({
-        title: "PDF Processed Successfully",
-        description: `Found ${transactions.length} transactions. Please review and edit them before saving.`,
+        title: "PDF Processed & Categorized",
+        description: `Found ${categorizedTransactions.length} transactions and automatically categorized them. Review and edit if needed.`,
       });
     } catch (error) {
       console.error('PDF processing error:', error);
       setError('Failed to process PDF. Please make sure it\'s a valid BCA bank statement.');
     } finally {
       setIsProcessing(false);
+      setIsCategorizing(false);
     }
   };
 
   const handleEditTransaction = (index: number) => {
-    setEditingTransaction(index.toString());
+    setEditingTransactionIndex(index);
+    setEditData(detectedTransactions[index]);
+    setEditDialogOpen(true);
   };
 
-  const handleSaveTransaction = (index: number, updatedTransaction: ImportedTransaction) => {
+  const handleSaveEditedTransaction = () => {
+    if (!editData || editingTransactionIndex === null) return;
+    
+    // Validate
+    if (!editData.description.trim() || !editData.amount_cents || !editData.category) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setDetectedTransactions(prev => 
-      prev.map((t, i) => i === index ? updatedTransaction : t)
+      prev.map((t, i) => i === editingTransactionIndex ? editData : t)
     );
-    setEditingTransaction(null);
+    
+    setEditDialogOpen(false);
+    setEditingTransactionIndex(null);
+    setEditData(null);
+    
     toast({
       title: "Transaction Updated",
       description: "Transaction has been successfully updated.",
@@ -92,11 +122,20 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
   };
 
   const handleDeleteTransaction = (index: number) => {
-    setDetectedTransactions(prev => prev.filter((_, i) => i !== index));
-    toast({
-      title: "Transaction Deleted",
-      description: "Transaction has been removed from the list.",
-    });
+    setTransactionToDeleteIndex(index);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteTransaction = () => {
+    if (transactionToDeleteIndex !== null) {
+      setDetectedTransactions(prev => prev.filter((_, i) => i !== transactionToDeleteIndex));
+      toast({
+        title: "Transaction Deleted",
+        description: "Transaction has been successfully deleted.",
+      });
+    }
+    setIsDeleteConfirmOpen(false);
+    setTransactionToDeleteIndex(null);
   };
 
   const handleSaveAllTransactions = async () => {
@@ -109,19 +148,13 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
     setError(null);
 
     try {
-      // First, categorize the transactions automatically
-      const categorizedTransactions = await categorizeTransactions(detectedTransactions);
-      
-      // Update the local state with categorized transactions
-      setDetectedTransactions(categorizedTransactions);
-      
-      // Save the categorized transactions
-      await saveTransactions(categorizedTransactions);
+      // Save the transactions (already categorized during upload)
+      await saveTransactions(detectedTransactions);
       setImportedDraft([]);
       
       toast({
-        title: "Transactions Saved & Categorized",
-        description: `${categorizedTransactions.length} transactions have been automatically categorized and saved.`,
+        title: "Transactions Saved",
+        description: `${detectedTransactions.length} transactions have been saved successfully.`,
       });
 
       // Close the form
@@ -135,37 +168,63 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
   };
 
   const handleCancelEdit = () => {
-    setEditingTransaction(null);
+    setEditDialogOpen(false);
+    setEditingTransactionIndex(null);
+    setEditData(null);
+  };
+
+  // Category options
+  const expenseCategories = [
+    { value: "Food & Dining", label: "Food & Dining", icon: "🍽️" },
+    { value: "Transport", label: "Transport", icon: "🚗" },
+    { value: "Shopping", label: "Shopping", icon: "🛍️" },
+    { value: "Bills & Utilities", label: "Bills & Utilities", icon: "⚡" },
+    { value: "Housing", label: "Housing", icon: "🏠" },
+    { value: "Health & Fitness", label: "Health & Fitness", icon: "💪" },
+    { value: "Entertainment & Leisure", label: "Entertainment & Leisure", icon: "🎬" },
+    { value: "Financial Fees", label: "Financial Fees", icon: "💳" },
+    { value: "Virtual Account", label: "Virtual Account", icon: "💸" },
+    { value: "Other", label: "Other", icon: "📦" }
+  ];
+
+  const incomeCategories = [
+    { value: "Salary / Wages", label: "Salary / Wages", icon: "💰" },
+    { value: "Business Income", label: "Business Income", icon: "💼" },
+    { value: "Freelance / Side Hustle", label: "Freelance / Side Hustle", icon: "🆓" },
+    { value: "Investments", label: "Investments", icon: "📈" },
+    { value: "Gifts & Transfers", label: "Gifts & Transfers", icon: "🎁" }
+  ];
+
+  const categoryOptions = editData ? (editData.type === 'credit' ? incomeCategories : expenseCategories) : expenseCategories;
+
+  // Clear category when type changes if it's not valid for the new type
+  const handleTypeChange = (newType: 'credit' | 'debit') => {
+    if (!editData) return;
+    
+    const newCategoryOptions = newType === 'credit' ? incomeCategories : expenseCategories;
+    const isCategoryValid = newCategoryOptions.some(cat => cat.value === editData.category);
+    
+    setEditData({
+      ...editData,
+      type: newType,
+      category: isCategoryValid ? editData.category : ''
+    });
   };
 
   const categorizeTransactions = async (transactions: ImportedTransaction[]): Promise<ImportedTransaction[]> => {
     setIsCategorizing(true);
     
     try {
-      // Simple deterministic categorizer based on keywords (same as ImportScreen)
-      const categorized = transactions.map(t => {
-        const desc = t.description.toLowerCase();
-        let category = t.category;
-        if (!category) {
-          if (/(salary|gaji|payroll|transfer.*(gaji|salary))/i.test(desc)) category = 'Salary / Wages';
-          else if (/(indomaret|alfamart|supermarket|mini market|grocer|hypermart)/i.test(desc)) category = 'Food & Dining';
-          else if (/(tokopedia|shopee|lazada|blibli|ecommerce|marketplace)/i.test(desc)) category = 'Shopping';
-          else if (/(pln|pdam|electric| listrik |water|internet|indihome|first media|xl|telkomsel|telkom)/i.test(desc)) category = 'Bills & Utilities';
-          else if (/(grab|gojek|transport|bus|train|travel|toll|tol|fuel|pertamina|spbu)/i.test(desc)) category = 'Transport';
-          else if (/(hospital|clinic|apotek|pharmacy|doctor|dokter|bpjs)/i.test(desc)) category = 'Health & Fitness';
-          else if (/(restaurant|cafe|coffee|mc ?donald|kfc|pizza|burger)/i.test(desc)) category = 'Food & Dining';
-          else if (/(rent|sewa|kos| kontrakan |apartemen)/i.test(desc)) category = 'Housing';
-          else if (/(education|tuition|school|kampus|course|kursus)/i.test(desc)) category = 'Other';
-          else if (/(fee|biaya|admin|charges)/i.test(desc)) category = 'Financial Fees';
-          else if (/(bca|bi-fast|trsf e-banking|transfer)/i.test(desc)) category = t.type === 'credit' ? 'Gifts & Transfers' : 'Other';
-          else category = 'Other';
-        }
-        return { ...t, category };
-      });
-
+      // Use OpenAI for intelligent categorization
+      const categorized = await categorizeTransactionsWithAI(transactions);
       return categorized;
     } catch (err) {
       console.error('Failed to categorize transactions:', err);
+      toast({
+        title: "Categorization Warning",
+        description: "Some transactions may not be properly categorized. You can edit them manually.",
+        variant: "default"
+      });
       return transactions; // Return original if categorization fails
     } finally {
       setIsCategorizing(false);
@@ -189,7 +248,33 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
       {/* Upload Area */}
       <Card className="financial-card p-6">
         <div className="space-y-4">
-          <div className="text-center">
+          {/* Loading Screen */}
+          {(isProcessing || isCategorizing) && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="relative">
+                <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-r-primary/40 rounded-full animate-pulse"></div>
+              </div>
+              <div className="text-center space-y-2 mt-6">
+                <p className="text-lg font-semibold text-primary">
+                  {isCategorizing ? 'Categorizing Transactions' : 'Processing PDF'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {isCategorizing ? 'Using AI to categorize your transactions...' : 'Extracting transaction data...'}
+                </p>
+                <div className="flex items-center justify-center space-x-1 mt-3">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Upload Form */}
+          {!isProcessing && !isCategorizing && (
+            <>
+              <div className="text-center">
             <div className="w-16 h-16 bg-primary/10 rounded-xl flex items-center justify-center mx-auto mb-4">
               <Upload className="w-8 h-8 text-primary" />
             </div>
@@ -221,6 +306,8 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
             <p>• Maximum file size: 10MB</p>
             <p>• Recommended for BCA mobile instead of MyBCA</p>
           </div>
+            </>
+          )}
         </div>
       </Card>
 
@@ -235,17 +322,17 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
               </span>
             </div>
             
-            <div className="space-y-3 max-h-[32rem] overflow-y-auto">
+            <div className="space-y-3 max-h-[32rem] overflow-y-auto overflow-x-hidden">
               {detectedTransactions.map((transaction, index) => (
                 <TransactionEditItem
                   key={index}
                   transaction={transaction}
                   index={index}
-                  isEditing={editingTransaction === index.toString()}
+                  isEditing={false}
                   onEdit={() => handleEditTransaction(index)}
-                  onSave={handleSaveTransaction}
+                  onSave={() => {}}
                   onDelete={() => handleDeleteTransaction(index)}
-                  onCancel={handleCancelEdit}
+                  onCancel={() => {}}
                 />
               ))}
             </div>
@@ -261,10 +348,10 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
               </Button>
               <Button
                 onClick={handleSaveAllTransactions}
-                disabled={isSaving || isCategorizing || detectedTransactions.length === 0}
+                disabled={isSaving || detectedTransactions.length === 0}
                 className="flex-1"
               >
-                {isCategorizing ? 'Categorizing...' : isSaving ? 'Saving...' : `Save All (${detectedTransactions.length})`}
+                {isSaving ? 'Saving...' : `Save All (${detectedTransactions.length})`}
               </Button>
             </div>
           </div>
@@ -295,12 +382,148 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
         </Button>
         <Button
           onClick={handleUpload}
-          disabled={!file || isProcessing}
+          disabled={!file || isProcessing || isCategorizing}
           className="flex-1"
         >
-          {isProcessing ? 'Processing...' : 'Process PDF'}
+          {isProcessing || isCategorizing ? (isCategorizing ? 'Categorizing...' : 'Processing...') : 'Process PDF'}
         </Button>
       </div>
+
+      {/* Edit Transaction Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => !open && handleCancelEdit()}>
+        <DialogContent className="max-w-md mx-auto rounded-3xl">
+          <DialogHeader className="rounded-t-3xl">
+            <DialogTitle className="text-xl font-bold">Edit Transaction</DialogTitle>
+          </DialogHeader>
+          
+          {editData && (
+            <div className="space-y-4">
+              {/* Description */}
+              <div className="relative">
+                <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  value={editData.description}
+                  onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+                  placeholder="Enter description"
+                  required
+                  className="pl-10 rounded-2xl h-12 text-base"
+                  autoComplete="off"
+                />
+              </div>
+
+              {/* Amount and Type */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Input
+                    type="number"
+                    value={Math.abs(editData.amount_cents)}
+                    onChange={(e) => setEditData({ ...editData, amount_cents: parseFloat(e.target.value || '0') })}
+                    placeholder="0"
+                    required
+                    className="pl-10 rounded-2xl h-12 text-base"
+                    inputMode="decimal"
+                  />
+                </div>
+                <ToggleGroup
+                  type="single"
+                  value={editData.type}
+                  onValueChange={(value: 'credit' | 'debit') => value && handleTypeChange(value)}
+                  className="justify-stretch"
+                >
+                  <ToggleGroupItem value="credit" className="flex-1 rounded-2xl h-12 data-[state=on]:bg-green-500 data-[state=on]:text-white">
+                    Income
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="debit" className="flex-1 rounded-2xl h-12 data-[state=on]:bg-red-500 data-[state=on]:text-white">
+                    Expense
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+
+              {/* Category and Date */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Category */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Tag className="w-4 h-4" />
+                    <span>Category</span>
+                  </div>
+                  <SearchableSelect
+                    value={editData.category || ''}
+                    onValueChange={(value) => setEditData({ ...editData, category: value })}
+                    options={categoryOptions}
+                    placeholder="Select category"
+                    className="rounded-2xl h-12"
+                  />
+                </div>
+
+                {/* Date */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="w-4 h-4" />
+                    <span>Date</span>
+                  </div>
+                  <Input
+                    type="date"
+                    value={editData.date}
+                    onChange={(e) => setEditData({ ...editData, date: e.target.value })}
+                    required
+                    className="rounded-2xl h-12 text-base"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCancelEdit}
+                  className="flex-1 rounded-2xl h-12"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSaveEditedTransaction}
+                  className="flex-1 rounded-2xl h-12 bg-gradient-to-r from-primary to-primary-light"
+                >
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Delete Transaction</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-muted-foreground mb-4">
+              Are you sure you want to delete this transaction? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className="flex-1 rounded-full"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDeleteTransaction}
+                className="flex-1 rounded-full bg-red-500 text-white hover:bg-red-600"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
@@ -325,159 +548,62 @@ const TransactionEditItem = ({
   onDelete, 
   onCancel 
 }: TransactionEditItemProps) => {
-  const [editData, setEditData] = useState<ImportedTransaction>(transaction);
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
-
-  const categories = [
-    // Expense Categories
-    "Food & Dining", "Transport", "Shopping", "Bills & Utilities", 
-    "Housing", "Health & Fitness", "Entertainment & Leisure", "Financial Fees", "Other",
-    // Income Categories
-    "Salary / Wages", "Business Income", "Freelance / Side Hustle", 
-    "Investments", "Gifts & Transfers"
-  ];
-
-  const validate = () => {
-    const newErrors: { [key: string]: string } = {};
-    if (!editData.description.trim()) newErrors.description = "Description is required.";
-    if (!editData.amount_cents || editData.amount_cents <= 0) newErrors.amount = "Amount must be positive.";
-    if (!editData.category) newErrors.category = "Category is required.";
-    if (!editData.date) newErrors.date = "Date is required.";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSave = () => {
-    if (!validate()) return;
-    onSave(index, editData);
-  };
-
-  const handleCancel = () => {
-    setEditData(transaction);
-    setErrors({});
-    onCancel();
-  };
-
-  if (isEditing) {
-    return (
-      <Card className="p-4 border-2 border-primary/20">
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium">Description</label>
-              <Input
-                value={editData.description}
-                onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                className="mt-1"
-              />
-              {errors.description && <p className="text-destructive text-xs mt-1">{errors.description}</p>}
-            </div>
-            <div>
-              <label className="text-sm font-medium">Amount</label>
-              <Input
-                type="number"
-                value={editData.amount_cents / 100}
-                onChange={(e) => setEditData({ ...editData, amount_cents: parseFloat(e.target.value) * 100 })}
-                className="mt-1"
-              />
-              {errors.amount && <p className="text-destructive text-xs mt-1">{errors.amount}</p>}
+  return (
+    <div className="w-full flex items-center gap-2">
+      {/* Main Card */}
+      <Card className="flex-1 min-w-0 p-3 overflow-hidden">
+        <div className="w-full flex items-center gap-3">
+          {/* Left side - Description and metadata */}
+          <div className="flex-1 min-w-0">
+            <p className="font-medium truncate">{transaction.description}</p>
+            <div className="flex items-center gap-2 mt-1 overflow-hidden">
+              <span className="text-sm text-muted-foreground truncate">{transaction.category || 'Other'}</span>
+              <span className="text-sm text-muted-foreground flex-shrink-0">•</span>
+              <span className="text-sm text-muted-foreground flex-shrink-0">
+                {new Date(transaction.date).toLocaleDateString()}
+              </span>
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium">Type</label>
-              <ToggleGroup
-                type="single"
-                value={editData.type}
-                onValueChange={(value: "credit" | "debit") => setEditData({ ...editData, type: value })}
-                className="mt-1"
-              >
-                <ToggleGroupItem value="credit">Income</ToggleGroupItem>
-                <ToggleGroupItem value="debit">Expense</ToggleGroupItem>
-              </ToggleGroup>
+          
+          {/* Right side - Amount */}
+          <div className="flex-shrink-0 w-24">
+            <div className="text-right">
+              <p className={`font-bold ${
+                transaction.type === 'credit' ? 'text-income' : 'text-expense'
+              }`}>
+                {new Intl.NumberFormat('id-ID', {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0,
+                }).format(Math.abs(transaction.amount_cents))}
+              </p>
             </div>
-            <div>
-              <label className="text-sm font-medium">Category</label>
-              <Select value={editData.category || ""} onValueChange={(value) => setEditData({ ...editData, category: value })}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.category && <p className="text-destructive text-xs mt-1">{errors.category}</p>}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Date</label>
-            <Input
-              type="date"
-              value={editData.date}
-              onChange={(e) => setEditData({ ...editData, date: e.target.value })}
-              className="mt-1"
-            />
-            {errors.date && <p className="text-destructive text-xs mt-1">{errors.date}</p>}
-          </div>
-
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handleSave} className="flex-1">
-              <Save className="w-4 h-4 mr-2" />
-              Save
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleCancel} className="flex-1">
-              <X className="w-4 h-4 mr-2" />
-              Cancel
-            </Button>
           </div>
         </div>
       </Card>
-    );
-  }
 
-  return (
-    <Card className="p-3">
-      <div className="flex items-center justify-between">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className={`text-xs px-2 py-1 rounded-full ${
-              transaction.type === 'credit' 
-                ? 'bg-green-100 text-green-800' 
-                : 'bg-red-100 text-red-800'
-            }`}>
-              {transaction.type === 'credit' ? 'Income' : 'Expense'}
-            </span>
-            <span className="text-xs text-muted-foreground">{transaction.category || 'Other'}</span>
-          </div>
-          <p className="font-medium text-sm truncate">{transaction.description}</p>
-          <div className="flex items-center justify-between mt-1">
-            <span className="text-xs text-muted-foreground">
-              {new Date(transaction.date).toLocaleDateString()}
-            </span>
-            <MoneyDisplay 
-              amount={transaction.amount_cents} 
-              showSign 
-              size="sm" 
-              animate={false}
-              transactionType={transaction.type}
-            />
-          </div>
-        </div>
-        <div className="flex gap-1 ml-2">
-          <Button size="sm" variant="ghost" onClick={onEdit}>
-            <Edit2 className="w-4 h-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={onDelete} className="text-destructive hover:text-destructive">
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
+      {/* Edit/Delete icons outside the card */}
+      <div className="flex flex-col gap-1 flex-shrink-0">
+        {/* Edit Icon */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onEdit}
+          className="h-8 w-8 rounded-md bg-yellow-100 hover:bg-yellow-200 text-yellow-700 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50 dark:text-yellow-400"
+          aria-label="Edit transaction"
+        >
+          <Edit2 className="w-4 h-4" />
+        </Button>
+        {/* Delete Icon */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onDelete}
+          className="h-8 w-8 rounded-md bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-400"
+          aria-label="Delete transaction"
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
       </div>
-    </Card>
+    </div>
   );
 };

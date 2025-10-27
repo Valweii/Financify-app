@@ -3,13 +3,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatCard } from "@/components/StatCard";
 import { MoneyDisplay } from "@/components/MoneyDisplay";
 import { useFinancifyStore, ImportedTransaction } from "@/store";
-import { Calendar, TrendingUp, TrendingDown, PieChart, Plus, Trash2, ChevronLeft, ChevronRight, ChevronDown, Search, Filter, X } from "lucide-react";
+import { Calendar, TrendingUp, TrendingDown, PieChart, Plus, Trash2, ChevronLeft, ChevronRight, Search, Filter, X, ArrowUpDown } from "lucide-react";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
+import { TransactionInputDialog } from "@/components/TransactionInputDialog";
 
 
 export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
@@ -27,9 +28,17 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
     amount_cents: 0,
     category: 'Other',
   });
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [expandedTransaction, setExpandedTransaction] = useState<string | null>(null);
   const [displayedTransactionsCount, setDisplayedTransactionsCount] = useState(50);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [categorySortBy, setCategorySortBy] = useState<'date' | 'amount'>('date');
+  const [categorySortDir, setCategorySortDir] = useState<'asc' | 'desc'>('desc');
+  const [selectedTransactionDetail, setSelectedTransactionDetail] = useState<any>(null);
+  const [isTransactionDetailOpen, setIsTransactionDetailOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState<any>(null);
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -71,6 +80,38 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
       };
     }
   }, [showFilters]);
+
+  const handleEditTransaction = () => {
+    setIsTransactionDetailOpen(false);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteTransactionFromDetail = () => {
+    setTransactionToDelete(selectedTransactionDetail);
+    setIsTransactionDetailOpen(false);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteTransaction = async () => {
+    if (!transactionToDelete) return;
+    
+    try {
+      await deleteTransaction(transactionToDelete.id);
+      toast({
+        title: "Transaction Deleted",
+        description: "Transaction has been successfully deleted.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete transaction. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleteConfirmOpen(false);
+      setTransactionToDelete(null);
+    }
+  };
 
   // Get filtered and paginated transactions
   const filteredTransactions = useMemo(() => {
@@ -290,8 +331,6 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
     });
     return Array.from(set);
   }, [transactions]);
-  const [monthlySortBy, setMonthlySortBy] = useState<'date' | 'amount'>('date');
-  const [monthlySortDir, setMonthlySortDir] = useState<'asc' | 'desc'>('desc');
 
   // Helper: format date as YYYY-MM-DD in local time (no timezone shift)
   const formatDateLocal = (date: Date) => {
@@ -348,7 +387,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
     }));
 
     return { monthlyTransactions, categoryStats };
-  }, [transactions, monthlyDate, expandedCategory]);
+  }, [transactions, monthlyDate]);
 
   const dailyStats = getDailyStats(selectedDate);
 
@@ -475,36 +514,47 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
 
             {dailyStats.transactions.length > 0 ? (
               <div className="space-y-2">
-                {dailyStats.transactions.map((transaction) => (
-                  <Card key={transaction.id} className="financial-card p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-1 min-w-0" onClick={() => setExpandedTransaction(prev => prev === transaction.id ? null : transaction.id)}>
-                        <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${expandedTransaction === transaction.id ? 'rotate-180' : ''}`} />
-                        <div className="min-w-0 w-full">
-                          <p className="font-medium truncate">{transaction.description}</p>
-                          <p className="text-sm text-muted-foreground truncate">
-                            {transaction.category} • {transaction.source}
-                          </p>
-                        </div>
+                {dailyStats.transactions.map((transaction) => {
+                  // Format amount without currency
+                  const formatAmountNoCurrency = (amount: number) => {
+                    return new Intl.NumberFormat('id-ID', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0,
+                    }).format(Math.abs(amount));
+                  };
+                  
+                  const getAmountColor = () => {
+                    return transaction.type === 'credit' ? "text-income" : "text-expense";
+                  };
+                  
+                  // Truncate description to max 35 characters
+                  const truncateDescription = (text: string, maxLength: number = 35) => {
+                    if (text.length <= maxLength) return text;
+                    return text.substring(0, maxLength) + '...';
+                  };
+                  
+                  return (
+                    <Card 
+                      key={transaction.id} 
+                      className="financial-card p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+                      onClick={() => {
+                        setSelectedTransactionDetail(transaction);
+                        setIsTransactionDetailOpen(true);
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium truncate flex-1 mr-2">{truncateDescription(transaction.description)}</p>
+                        <p className={`font-bold whitespace-nowrap ${getAmountColor()}`}>
+                          {formatAmountNoCurrency(transaction.amount_cents)}
+                        </p>
                       </div>
-                      <MoneyDisplay
-                        amount={transaction.amount_cents}
-                        showSign
-                        size="md"
-                        animate={false}
-                        transactionType={transaction.type}
-                      />
-                    </div>
-                    <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedTransaction === transaction.id ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                      <div className="space-y-2 pt-2 border-t border-border/50 mt-2">
-                        <div className="text-sm text-muted-foreground">Description: {transaction.description}</div>
-                        <div className="text-sm text-muted-foreground">Date: {new Date(transaction.date).toLocaleDateString(transactionDateFormat)}</div>
-                        <div className="text-sm text-muted-foreground">Category: {transaction.category}</div>
-                        <div className="text-sm text-muted-foreground">Source: {transaction.source}</div>
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <p className="truncate">{transaction.category}</p>
+                        <p className="whitespace-nowrap ml-2">{new Date(transaction.date).toLocaleDateString(transactionDateFormat)}</p>
                       </div>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             ) : (
               <Card className="financial-card p-8 text-center">
@@ -571,113 +621,63 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
 
           {/* Category Breakdown */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Spending by Category</h3>
-              <div className="flex items-center gap-3">
-                <Select value={monthlySortBy} onValueChange={(v) => setMonthlySortBy(v as 'date' | 'amount')}>
-                  <SelectTrigger className="h-8 w-32">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="date">Date</SelectItem>
-                    <SelectItem value="amount">Amount</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={monthlySortDir} onValueChange={(v) => setMonthlySortDir(v as 'asc' | 'desc')}>
-                  <SelectTrigger className="h-8 w-24">
-                    <SelectValue placeholder="Order" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="asc">Asc</SelectItem>
-                    <SelectItem value="desc">Desc</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            <h3 className="text-lg font-semibold mb-4">Spending by Category</h3>
             
             {categoryStats.length > 0 ? (
               <div className="space-y-3">
-                {categoryStats.map((stat) => (
-                  <Card key={stat.category} className="financial-card p-4 cursor-pointer" onClick={() => setExpandedCategory(prev => prev === stat.category ? null : stat.category)}>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${expandedCategory === stat.category ? 'rotate-180' : ''}`} />
+                {categoryStats.map((stat) => {
+                  // Format amount without currency
+                  const formatAmountNoCurrency = (amount: number) => {
+                    return new Intl.NumberFormat('id-ID', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0,
+                    }).format(Math.abs(amount));
+                  };
+                  
+                  const getAmountColor = () => {
+                    return stat.total >= 0 ? "text-income" : "text-expense";
+                  };
+                  
+                  return (
+                    <Card 
+                      key={stat.category} 
+                      className="financial-card p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+                      onClick={() => {
+                        setSelectedCategory(stat.category);
+                        setIsCategoryModalOpen(true);
+                      }}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
                           <div className="min-w-0">
-                            <p className="font-medium truncate">{stat.category}</p>
+                            <p className="font-bold truncate">{stat.category}</p>
                             <p className="text-sm text-muted-foreground truncate">
                               {stat.count} transaction{stat.count !== 1 ? 's' : ''}
                             </p>
                           </div>
+                          <p className={`font-bold whitespace-nowrap ${getAmountColor()}`}>
+                            {formatAmountNoCurrency(stat.total)}
+                          </p>
                         </div>
-                        <MoneyDisplay 
-                          amount={stat.total}
-                          showSign
-                          size="md"
-                          animate={false}
-                        />
-                      </div>
                       
-                      {(stat.income > 0 || stat.expense > 0) && (
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          {stat.income > 0 && (
-                            <div className="text-income">
-                              Income: <MoneyDisplay amount={stat.income} size="sm" animate={false} />
-                            </div>
-                          )}
-                          {stat.expense > 0 && (
-                            <div className="text-expense">
-                              Expense: <MoneyDisplay amount={stat.expense} size="sm" animate={false} />
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedCategory === stat.category ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
-                        <div className="space-y-2 pt-2 border-t border-border/50">
-                          {[...monthlyTransactions
-                            .filter(t => t.category === stat.category)
-                            .sort((a, b) => {
-                              const dir = monthlySortDir === 'asc' ? -1 : 1;
-                              if (monthlySortBy === 'date') {
-                                const da = new Date(a.date).getTime();
-                                const db = new Date(b.date).getTime();
-                                return da === db ? 0 : (da < db ? -1 : 1) * dir;
-                              } else {
-                                const aa = a.amount_cents;
-                                const bb = b.amount_cents;
-                                return aa === bb ? 0 : (aa < bb ? -1 : 1) * dir;
-                              }
-                            })].map(t => (
-                            <div key={t.id} className="grid grid-cols-2 gap-2 text-sm items-start cursor-pointer" onClick={() => setExpandedTransaction(prev => prev === t.id ? null : t.id)}>
-                              <div className="truncate pr-2">
-                                <div className="font-medium truncate flex items-center gap-2">
-                                  <ChevronDown className={`w-3 h-3 flex-shrink-0 transition-transform ${expandedTransaction === t.id ? 'rotate-180' : ''}`} />
-                                  {t.description}
-                                </div>
-                                <div className="text-muted-foreground truncate">
-                                  {new Date(t.date).toLocaleDateString('en-US')}
-                                </div>
+                        {(stat.income > 0 || stat.expense > 0) && (
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            {stat.income > 0 && (
+                              <div className="text-income">
+                                Income: <span className="font-semibold">{formatAmountNoCurrency(stat.income)}</span>
                               </div>
-                              <div className="text-right">
-                                <MoneyDisplay amount={t.amount_cents} showSign size="md" animate={false} transactionType={t.type} />
+                            )}
+                            {stat.expense > 0 && (
+                              <div className="text-expense">
+                                Expense: <span className="font-semibold">{formatAmountNoCurrency(stat.expense)}</span>
                               </div>
-                              {expandedTransaction === t.id && (
-                                <div className="col-span-2 mt-2 pt-2 border-t border-border/50">
-                                  <div className="text-xs text-muted-foreground space-y-1">
-                                    <div>Description: {t.description}</div>
-                                    <div>Category: {t.category}</div>
-                                    <div>Source: {t.source}</div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             ) : (
               <Card className="financial-card p-8 text-center">
@@ -882,54 +882,72 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                 <p className="text-muted-foreground">No transactions yet</p>
               </Card>
              ) : (
-               displayedTransactions.map(t => (
-               <div key={t.id} className="relative overflow-hidden">
-                 <Card 
-                   className={`financial-card p-4 transition-transform duration-300 ${
-                     swipedTransactionId === t.id ? '-translate-x-20' : 'translate-x-0'
-                   }`}
-                   onTouchStart={(e) => handleSwipeStart(e, t.id)}
-                   onTouchMove={handleSwipeMove}
-                   onTouchEnd={handleSwipeEnd}
-                 >
-                   <div className="flex items-center justify-between">
-                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                       <div className="min-w-0 w-full">
-                         <div className="font-medium truncate">{t.description}</div>
-                         <div className="text-sm text-muted-foreground truncate">
-                           {new Date(t.date).toLocaleDateString(transactionDateFormat)}
-                         </div>
-                       </div>
-                     </div>
-                     <div className="flex items-center">
-                       <MoneyDisplay amount={t.amount_cents} showSign size="md" animate={false} transactionType={t.type} />
-                     </div>
-                   </div>
-                   <div className="space-y-2 pt-2 border-t border-border/50 mt-2">
-                     <div className="text-sm text-muted-foreground">Description: {t.description}</div>
-                     <div className="text-sm text-muted-foreground">Category: {t.category}</div>
-                     <div className="text-sm text-muted-foreground">Source: {t.source}</div>
-                   </div>
-                 </Card>
+               displayedTransactions.map(t => {
+                 // Format amount without currency
+                 const formatAmountNoCurrency = (amount: number) => {
+                   return new Intl.NumberFormat('id-ID', {
+                     minimumFractionDigits: 0,
+                     maximumFractionDigits: 0,
+                   }).format(Math.abs(amount));
+                 };
                  
-                 {/* Delete Button - Revealed on Swipe */}
-                 <div className={`absolute right-0 top-0 h-full w-20 flex items-center justify-center transition-transform duration-300 ${
-                   swipedTransactionId === t.id ? 'translate-x-0' : 'translate-x-full'
-                 }`}>
-                   <Button
-                     variant="destructive"
-                     size="sm"
-                     onClick={(e) => {
-                       e.stopPropagation();
-                       handleDeleteTransaction(t.id);
-                     }}
-                     className="h-full w-16 rounded-lg"
-                   >
-                     Delete
-                   </Button>
-                 </div>
-               </div>
-             )))}
+                 const getAmountColor = () => {
+                   return t.type === 'credit' ? "text-income" : "text-expense";
+                 };
+                 
+                 // Truncate description to max 35 characters
+                 const truncateDescription = (text: string, maxLength: number = 35) => {
+                   if (text.length <= maxLength) return text;
+                   return text.substring(0, maxLength) + '...';
+                 };
+                 
+                 return (
+                   <div key={t.id} className="relative overflow-hidden">
+                     <Card 
+                       className={`financial-card p-4 cursor-pointer hover:bg-accent/50 transition-all duration-300 ${
+                         swipedTransactionId === t.id ? '-translate-x-20' : 'translate-x-0'
+                       }`}
+                       onTouchStart={(e) => handleSwipeStart(e, t.id)}
+                       onTouchMove={handleSwipeMove}
+                       onTouchEnd={handleSwipeEnd}
+                       onClick={() => {
+                         if (swipedTransactionId !== t.id) {
+                           setSelectedTransactionDetail(t);
+                           setIsTransactionDetailOpen(true);
+                         }
+                       }}
+                     >
+                       <div className="flex items-center justify-between mb-2">
+                         <p className="font-medium truncate flex-1 mr-2">{truncateDescription(t.description)}</p>
+                         <p className={`font-bold whitespace-nowrap ${getAmountColor()}`}>
+                           {formatAmountNoCurrency(t.amount_cents)}
+                         </p>
+                       </div>
+                       <div className="flex items-center justify-between text-sm text-muted-foreground">
+                         <p className="truncate">{t.category}</p>
+                         <p className="whitespace-nowrap ml-2">{new Date(t.date).toLocaleDateString(transactionDateFormat)}</p>
+                       </div>
+                     </Card>
+                     
+                     {/* Delete Button - Revealed on Swipe */}
+                     <div className={`absolute right-0 top-0 h-full w-20 flex items-center justify-center transition-transform duration-300 ${
+                       swipedTransactionId === t.id ? 'translate-x-0' : 'translate-x-full'
+                     }`}>
+                       <Button
+                         variant="destructive"
+                         size="sm"
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           handleDeleteTransaction(t.id);
+                         }}
+                         className="h-full w-16 rounded-lg"
+                       >
+                         Delete
+                       </Button>
+                     </div>
+                   </div>
+                 );
+               }))}
             
             {/* Load More Button */}
             {hasMoreTransactions && (
@@ -946,6 +964,261 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Category Transactions Modal */}
+      {selectedCategory && (
+        <Dialog 
+          open={isCategoryModalOpen} 
+          onOpenChange={(open) => {
+            setIsCategoryModalOpen(open);
+            if (!open) {
+              // Reset sorting when modal closes
+              setCategorySortBy('date');
+              setCategorySortDir('desc');
+            }
+          }}
+        >
+          <DialogContent 
+            className="fixed bottom-0 left-0 right-0 top-[20vh] w-full max-w-full rounded-t-3xl border-0 p-0 translate-x-0 translate-y-0 overflow-hidden"
+            style={{
+              animation: isCategoryModalOpen 
+                ? 'slideUp 0.3s ease-out forwards' 
+                : 'slideDown 0.3s ease-in forwards'
+            }}
+          >
+            <div className="flex flex-col h-full w-full bg-background rounded-t-3xl overflow-hidden">
+              {/* Header */}
+              <div className="sticky top-0 bg-background border-b border-border px-4 py-4 rounded-t-3xl z-10 flex-shrink-0">
+                <div className="flex items-center justify-between gap-3">
+                  {/* Left side - Category info */}
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-xl font-bold truncate">{selectedCategory}</h2>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {monthlyTransactions.filter(t => t.category === selectedCategory).length} transaction
+                      {monthlyTransactions.filter(t => t.category === selectedCategory).length !== 1 ? 's' : ''} • {monthlyDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })}
+                    </p>
+                  </div>
+                  
+                  {/* Right side - Sorting Controls */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* Pill Toggle for Sort Type */}
+                    <div className="flex items-center bg-secondary rounded-full p-1.5">
+                      <button
+                        onClick={() => setCategorySortBy('date')}
+                        className={`px-3 py-1 rounded-full text-sm font-medium transition-all ${
+                          categorySortBy === 'date' 
+                            ? 'bg-primary text-primary-foreground shadow-sm' 
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        Date
+                      </button>
+                      <button
+                        onClick={() => setCategorySortBy('amount')}
+                        className={`px-3 py-1 rounded-full text-sm font-medium transition-all ${
+                          categorySortBy === 'amount' 
+                            ? 'bg-primary text-primary-foreground shadow-sm' 
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        Amount
+                      </button>
+                    </div>
+                    
+                    {/* Circular Sort Direction Button */}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="rounded-full h-8 w-8"
+                      onClick={() => setCategorySortDir(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    >
+                      <ArrowUpDown className={`w-4 h-4 transition-transform ${categorySortDir === 'asc' ? 'rotate-180' : ''}`} />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Transactions List */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4">
+                <div className="space-y-2 pb-20 w-full">
+                  {monthlyTransactions
+                    .filter(t => t.category === selectedCategory)
+                    .sort((a, b) => {
+                      const dir = categorySortDir === 'asc' ? 1 : -1;
+                      if (categorySortBy === 'date') {
+                        const da = new Date(a.date).getTime();
+                        const db = new Date(b.date).getTime();
+                        return (da - db) * dir;
+                      } else {
+                        const aa = Math.abs(a.amount_cents);
+                        const bb = Math.abs(b.amount_cents);
+                        return (aa - bb) * dir;
+                      }
+                    })
+                    .map((transaction) => {
+                      // Format amount without currency
+                      const formatAmountNoCurrency = (amount: number) => {
+                        return new Intl.NumberFormat('id-ID', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0,
+                        }).format(Math.abs(amount));
+                      };
+                      
+                      const getAmountColor = () => {
+                        return transaction.type === 'credit' ? "text-income" : "text-expense";
+                      };
+                      
+                      // Truncate description to max 35 characters
+                      const truncateDescription = (text: string, maxLength: number = 35) => {
+                        if (text.length <= maxLength) return text;
+                        return text.substring(0, maxLength) + '...';
+                      };
+                      
+                      return (
+                        <Card 
+                          key={transaction.id} 
+                          className="financial-card p-4 overflow-hidden cursor-pointer hover:bg-accent/50 transition-colors"
+                          onClick={() => {
+                            setSelectedTransactionDetail(transaction);
+                            setIsTransactionDetailOpen(true);
+                          }}
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <p className="font-medium truncate flex-1 min-w-0">{truncateDescription(transaction.description)}</p>
+                            <p className={`font-bold whitespace-nowrap flex-shrink-0 ${getAmountColor()}`}>
+                              {formatAmountNoCurrency(transaction.amount_cents)}
+                            </p>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                            <p className="truncate flex-1 min-w-0">{transaction.source}</p>
+                            <p className="whitespace-nowrap flex-shrink-0">{new Date(transaction.date).toLocaleDateString('en-US')}</p>
+                          </div>
+                        </Card>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Transaction Detail Dialog */}
+      {selectedTransactionDetail && (
+        <Dialog open={isTransactionDetailOpen} onOpenChange={setIsTransactionDetailOpen}>
+          <DialogContent className="max-w-md w-[90%] sm:w-full rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Transaction Details</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {/* Type Badge */}
+              <div className="flex items-center gap-2">
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  selectedTransactionDetail.type === 'credit' 
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
+                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                }`}>
+                  {selectedTransactionDetail.type === 'credit' ? 'Income' : 'Expense'}
+                </span>
+              </div>
+
+              {/* Description */}
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Description</p>
+                <p className="font-medium text-base break-words">{selectedTransactionDetail.description}</p>
+              </div>
+
+              {/* Amount */}
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Amount</p>
+                <p className={`text-2xl font-bold ${
+                  selectedTransactionDetail.type === 'credit' ? 'text-income' : 'text-expense'
+                }`}>
+                  {new Intl.NumberFormat('id-ID', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                  }).format(Math.abs(selectedTransactionDetail.amount_cents))}
+                </p>
+              </div>
+
+              {/* Category */}
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Category</p>
+                <p className="font-medium">{selectedTransactionDetail.category}</p>
+              </div>
+
+              {/* Source */}
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Source</p>
+                <p className="font-medium">{selectedTransactionDetail.source}</p>
+              </div>
+
+              {/* Date */}
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Date</p>
+                <p className="font-medium">{new Date(selectedTransactionDetail.date).toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}</p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t border-border">
+                <Button
+                  onClick={handleEditTransaction}
+                  className="flex-1 rounded-full border-2 border-green-500 text-green-500 hover:bg-green-500 hover:text-white transition-colors"
+                >
+                  Edit
+                </Button>
+                <Button
+                  onClick={handleDeleteTransactionFromDetail}
+                  className="flex-1 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
+                >
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Edit Transaction Dialog */}
+      <TransactionInputDialog
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        initialTransaction={selectedTransactionDetail}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Delete Transaction</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-muted-foreground mb-4">
+              Are you sure you want to delete this transaction? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className="flex-1 rounded-full"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDeleteTransaction}
+                className="flex-1 rounded-full bg-red-500 text-white hover:bg-red-600"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

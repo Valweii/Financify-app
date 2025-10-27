@@ -82,6 +82,7 @@ interface FinancifyStore {
   loadTransactions: () => Promise<void>;
   saveTransactions: (transactions: ImportedTransaction[]) => Promise<void>;
   createTransaction: (transaction: ImportedTransaction & { date: string }) => Promise<void>;
+  updateTransaction: (id: string, transaction: ImportedTransaction & { date: string }) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   loadProfile: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -319,54 +320,42 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
         }
       }
 
-      // Also load unencrypted transactions (for backward compatibility and mixed states)
-      try {
-        
-        const { data, error } = await (supabase.from('transactions') as any)
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('is_encrypted', false)
-          .order('date', { ascending: false });
+      // Only load unencrypted transactions when encryption is disabled
+      if (!encryptionKey) {
+        try {
+          const { data, error } = await supabase
+            .from('transactions')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('is_encrypted', false)
+            .order('date', { ascending: false });
 
-        if (error) {
-          console.error('❌ Error loading unencrypted transactions:', error);
-          throw error;
+          if (error) {
+            console.error('❌ Error loading unencrypted transactions:', error);
+            throw error;
+          }
+
+          const unencryptedTransactions: Transaction[] = ((data as any[]) || []).map(t => ({
+            id: t.id,
+            date: (t.date || '').split('T')[0],
+            description: t.description || '',
+            type: (t.type as 'debit' | 'credit') || 'debit',
+            amount_cents: t.amount_cents || 0,
+            currency: t.currency || 'IDR',
+            category: t.category || 'Other',
+            running_balance_cents: t.running_balance_cents || 0,
+            source: t.source || 'Manual',
+            created_at: t.created_at || new Date().toISOString(),
+          }));
+          
+          allTransactions = [...unencryptedTransactions];
+        } catch (error) {
+          console.error('Failed to load unencrypted transactions:', error);
         }
-
-        
-        const unencryptedTransactions: Transaction[] = ((data as any[]) || []).map(t => ({
-          id: t.id,
-          date: (t.date || '').split('T')[0],
-          description: t.description || '',
-          type: (t.type as 'debit' | 'credit') || 'debit',
-          amount_cents: t.amount_cents || 0,
-          currency: t.currency || 'IDR',
-          category: t.category || 'Other',
-          running_balance_cents: t.running_balance_cents || 0,
-          source: t.source || 'Manual',
-          created_at: t.created_at || new Date().toISOString(),
-        }));
-        
-        allTransactions = [...allTransactions, ...unencryptedTransactions];
-      } catch (error) {
-        console.error('Failed to load unencrypted transactions:', error);
       }
 
       // Sort all transactions by date (newest first)
       allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      
-      // Debug: Check what's actually in the database
-      try {
-        const { data: allDbTransactions, error: allError } = await (supabase.from('transactions') as any)
-          .select('*')
-          .eq('user_id', user.id)
-          .order('date', { ascending: false });
-        
-        if (!allError) {
-        }
-      } catch (error) {
-        console.error('Failed to load all transactions for debugging:', error);
-      }
       
       set({ transactions: allTransactions });
     } catch (error) {
@@ -514,6 +503,94 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       await get().loadTransactions();
     } catch (error) {
       console.error('Error creating transaction:', error);
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  updateTransaction: async (id, transaction) => {
+    const { user, transactions, encryptionKey } = get();
+    if (!user) throw new Error('User not authenticated');
+
+    console.log('Store updateTransaction called with ID:', id, 'Transaction:', transaction);
+
+    set({ isLoading: true });
+    try {
+      // Always use encryption if key is available
+      if (encryptionKey) {
+        const { useEncryptedStore } = await import('./encryptedStore');
+        const encryptedStore = useEncryptedStore();
+        await encryptedStore.updateEncryptedTransaction(id, transaction, encryptionKey);
+        
+        // Update local state for encrypted transactions
+        const updatedTransaction: Transaction = {
+          id: id,
+          date: transaction.date,
+          description: transaction.description,
+          type: transaction.type,
+          amount_cents: transaction.amount_cents,
+          currency: 'IDR',
+          category: transaction.category,
+          running_balance_cents: 0, // Will be recalculated on next load
+          source: 'Manual',
+          created_at: new Date().toISOString(),
+        };
+        
+        set(state => ({
+          transactions: state.transactions.map(t => t.id === id ? updatedTransaction : t)
+        }));
+        
+        console.log('Updated local state for encrypted transaction');
+        
+        // Reload transactions to ensure UI consistency
+        await get().loadTransactions();
+        return;
+      }
+
+      // Original unencrypted logic
+      const { data, error } = await supabase
+        .from('transactions')
+        .update({
+          description: transaction.description,
+          amount_cents: transaction.amount_cents,
+          type: transaction.type,
+          category: transaction.category,
+          date: transaction.date,
+        })
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update the transaction in local state
+      const updatedTransaction: Transaction = {
+        id: data.id,
+        date: data.date,
+        description: data.description || '',
+        type: (data.type as 'debit' | 'credit') || 'debit',
+        amount_cents: data.amount_cents || 0,
+        currency: data.currency || 'IDR',
+        category: data.category || 'Other',
+        running_balance_cents: data.running_balance_cents || 0,
+        source: data.source || 'Manual',
+        created_at: data.created_at || new Date().toISOString(),
+      };
+
+      // Update local state
+      set(state => ({
+        transactions: state.transactions.map(t => t.id === id ? updatedTransaction : t)
+      }));
+      
+      console.log('Updated local state for unencrypted transaction');
+      
+      // Reload transactions to ensure UI consistency
+      await get().loadTransactions();
+      
+    } catch (error) {
+      console.error('Error updating transaction:', error);
       throw error;
     } finally {
       set({ isLoading: false });

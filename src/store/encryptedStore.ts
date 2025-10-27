@@ -25,6 +25,7 @@ export interface EncryptedStore {
   
   // Encrypted database operations
   createEncryptedTransaction: (transaction: ImportedTransaction & { date: string }, encryptionKey: CryptoKey) => Promise<void>;
+  updateEncryptedTransaction: (id: string, transaction: ImportedTransaction & { date: string }, encryptionKey: CryptoKey) => Promise<void>;
   loadEncryptedTransactions: (encryptionKey: CryptoKey) => Promise<Transaction[]>;
   saveEncryptedTransactions: (transactions: (ImportedTransaction & { date: string })[], encryptionKey: CryptoKey) => Promise<void>;
   deleteEncryptedTransaction: (id: string) => Promise<void>;
@@ -104,6 +105,41 @@ export const useEncryptedStore = (): EncryptedStore => {
       });
 
     if (error) throw error;
+  };
+
+  // Update encrypted transaction
+  const updateEncryptedTransaction = async (
+    id: string,
+    transaction: ImportedTransaction & { date: string },
+    encryptionKey: CryptoKey
+  ): Promise<void> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    console.log('Encrypted store updateEncryptedTransaction called with ID:', id);
+
+    const encrypted = await encryptTransaction(transaction, encryptionKey);
+    if (!encrypted) throw new Error('Failed to encrypt transaction');
+
+    const { error } = await supabase
+      .from('transactions')
+      .update({
+        encrypted_data: JSON.stringify(encrypted.data),
+        encryption_iv: JSON.stringify(encrypted.iv),
+        encryption_version: encrypted.version,
+        is_encrypted: true,
+        // Keep date unencrypted for sorting/filtering
+        date: transaction.date
+      })
+      .eq('id', id)
+      .eq('user_id', user.id);
+
+    if (error) {
+      console.error('Encrypted store update error:', error);
+      throw error;
+    }
+    
+    console.log('Encrypted store update successful');
   };
 
   // Load and decrypt transactions
@@ -218,6 +254,7 @@ export const useEncryptedStore = (): EncryptedStore => {
     encryptTransaction,
     decryptTransaction,
     createEncryptedTransaction,
+    updateEncryptedTransaction,
     loadEncryptedTransactions,
     saveEncryptedTransactions,
     deleteEncryptedTransaction

@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, Pencil, ChevronDown, ImagePlus, History, Receipt, ArrowLeft, ArrowRight } from "lucide-react";
+import { Plus, Trash2, Pencil, ImagePlus, History, Receipt, ArrowLeft, ArrowRight } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MoneyDisplay } from "@/components/MoneyDisplay";
 import { useFinancifyStore, type SplitBillHistory } from "@/store";
@@ -37,7 +37,6 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
   const [isEditItemOpen, setIsEditItemOpen] = useState(false);
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [editItemPrice, setEditItemPrice] = useState<string>("0");
-  const [expandedPersonId, setExpandedPersonId] = useState<string | null>(null);
   const [step, setStep] = useState<-1 | 0 | 1 | 2 | 3>(startAtStep as -1 | 0 | 1 | 2 | 3);
   const [assignPersonId, setAssignPersonId] = useState<string | null>(null);
   
@@ -88,17 +87,29 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
 
   // Handle edit mode toggle with exit animation
   const handleEditModeToggle = () => {
+    // Prevent double-click during animation
+    if (isExitingEditMode) return;
+    
     if (isEditMode) {
+      // Clear any inline transform styles that might interfere with animation
+      const editButtons = document.querySelectorAll('button[aria-label="Edit price"]');
+      const deleteButtons = document.querySelectorAll('button[aria-label="Delete item"]');
+      editButtons.forEach(btn => (btn as HTMLElement).style.transform = '');
+      deleteButtons.forEach(btn => (btn as HTMLElement).style.transform = '');
+      
       // Exiting edit mode - start exit animation
       setIsExitingEditMode(true);
       setAnimationKey(prev => prev + 1); // Force re-render
       
-      // Don't hide icons immediately - let animation complete
+      // Keep icons mounted but hidden during animation, then unmount
       setTimeout(() => {
-        setIsEditMode(false);
-        setIsExitingEditMode(false);
         setShowEditIcons(false);
-      }, 500); // Give more time for animations to complete
+        // Small delay before resetting states to ensure smooth unmount
+        setTimeout(() => {
+          setIsEditMode(false);
+          setIsExitingEditMode(false);
+        }, 50);
+      }, 400); // Match animation duration exactly
     } else {
       // Entering edit mode
       setIsEditMode(true);
@@ -107,159 +118,14 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
     }
   };
 
-  // Add CSS animations for edit mode
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes slideInFromRight {
-        from {
-          transform: translateX(16px);
-          opacity: 0;
-        }
-        to {
-          transform: translateX(0);
-          opacity: 1;
-        }
-      }
-      
-      @keyframes slideOutToRight {
-        from {
-          transform: translateX(0);
-          opacity: 1;
-        }
-        to {
-          transform: translateX(16px);
-          opacity: 0;
-        }
-      }
-      
-      @keyframes fadeInScale {
-        from {
-          transform: scale(0.8);
-          opacity: 0;
-        }
-        to {
-          transform: scale(1);
-          opacity: 1;
-        }
-      }
-      
-      @keyframes fadeOutScale {
-        from {
-          transform: scale(1);
-          opacity: 1;
-        }
-        to {
-          transform: scale(0.8);
-          opacity: 0;
-        }
-      }
-      
-      .edit-icon-enter {
-        animation: slideInFromRight 0.4s ease-out forwards;
-      }
-      
-      .edit-icon-exit {
-        animation: slideOutToRight 0.4s ease-in forwards;
-      }
-      
-      .delete-icon-enter {
-        animation: fadeInScale 0.4s ease-out forwards;
-      }
-      
-      .delete-icon-exit {
-        animation: fadeOutScale 0.4s ease-in forwards;
-      }
-      
-      .edit-icon-hover {
-        transform: scale(1.1) rotate(12deg) !important;
-      }
-      
-      .delete-icon-press {
-        transform: scale(0.8) !important;
-        background-color: rgba(239, 68, 68, 0.1) !important;
-      }
-      
-      /* Progress bar animations */
-      .progress-bar-fill {
-        transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        transform-origin: left;
-      }
-      
-      .progress-bar-fill-forward {
-        animation: progressFillForward 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards, progressGlow 0.6s ease-in-out forwards;
-        box-shadow: 0 0 8px rgba(34, 197, 94, 0.4), 0 0 16px rgba(34, 197, 94, 0.2);
-      }
-      
-      .progress-bar-fill-backward {
-        animation: progressFillBackward 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards, progressGlow 0.6s ease-in-out forwards;
-        box-shadow: 0 0 8px rgba(34, 197, 94, 0.4), 0 0 16px rgba(34, 197, 94, 0.2);
-      }
-      
-      @keyframes progressFillForward {
-        from {
-          width: var(--progress-from);
-        }
-        to {
-          width: var(--progress-to);
-        }
-      }
-      
-      @keyframes progressFillBackward {
-        from {
-          width: var(--progress-from);
-        }
-        to {
-          width: var(--progress-to);
-        }
-      }
-      
-      @keyframes progressGlow {
-        0% {
-          box-shadow: 0 0 4px rgba(34, 197, 94, 0.2), 0 0 8px rgba(34, 197, 94, 0.1);
-        }
-        50% {
-          box-shadow: 0 0 12px rgba(34, 197, 94, 0.6), 0 0 24px rgba(34, 197, 94, 0.3);
-        }
-        100% {
-          box-shadow: 0 0 8px rgba(34, 197, 94, 0.4), 0 0 16px rgba(34, 197, 94, 0.2);
-        }
-      }
-    `;
-    document.head.appendChild(style);
-    
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
 
-  // Force animation trigger
+  // Reset edit mode when changing steps
   useEffect(() => {
-    if (isExitingEditMode) {
-      // Small delay to ensure DOM is updated
-    setTimeout(() => {
-        // Find all edit and delete buttons that should have exit animations
-        const editButtons = document.querySelectorAll('button[aria-label="Edit price"]');
-        const deleteButtons = document.querySelectorAll('button[aria-label="Delete item"]');
-        
-        editButtons.forEach(btn => {
-          // Remove any existing animation classes and force exit animation
-          btn.classList.remove('edit-icon-enter', 'edit-icon-exit');
-        setTimeout(() => {
-            btn.classList.add('edit-icon-exit');
-          }, 10);
-        });
-        
-        deleteButtons.forEach(btn => {
-          // Remove any existing animation classes and force exit animation
-          btn.classList.remove('delete-icon-enter', 'delete-icon-exit');
-    setTimeout(() => {
-            btn.classList.add('delete-icon-exit');
-          }, 10);
-        });
-      }, 50);
-    }
-  }, [isExitingEditMode]);
+    // Always reset edit mode states when step changes
+    setIsEditMode(false);
+    setIsExitingEditMode(false);
+    setShowEditIcons(false);
+  }, [step]);
 
   // Handle navigation to split bill page
   const handleStartSplitBill = () => {
@@ -307,12 +173,14 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
     setIsEditItemOpen(false);
     setEditItemId(null);
     setEditItemPrice("0");
-    setExpandedPersonId(null);
     handleStepChange(startAtStep as -1 | 0 | 1 | 2 | 3);
     setAssignPersonId(null);
     setMyPersonId(null);
     setMyName("");
     setIsEditMode(false);
+    setIsExitingEditMode(false);
+    setShowEditIcons(false);
+    setAnimationKey(0);
     setNewPersonName("");
     setDraftItem({ name: "", price_cents: 0, participants: [] });
   }, [startAtStep]);
@@ -476,11 +344,16 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
   const removePerson = (id: string) => {
     setPeople(prev => prev.filter(p => p.id !== id));
     setItems(prev => prev.map(it => ({ ...it, participants: it.participants.filter(pid => pid !== id) })));
-    if (expandedPersonId === id) setExpandedPersonId(null);
   };
 
   const removeItem = (id: string) => setItems(prev => prev.filter(it => it.id !== id));
 
+  const saveEditItem = () => {
+    const v = Math.max(0, parseInt(editItemPrice || '0', 10));
+    if (!editItemId) { setIsEditItemOpen(false); return; }
+    setItems(prev => prev.map(it => it.id === editItemId ? { ...it, price_cents: v } : it));
+    setIsEditItemOpen(false);
+  };
 
   const togglePersonInItem = (itemId: string, personId: string) => {
     setItems(prev => prev.map(it => {
@@ -853,12 +726,10 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
             )}
             {people.map(p => (
                   <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-background">
-                <div className="flex items-center gap-2 min-w-0 cursor-pointer" onClick={() => setExpandedPersonId(prev => prev === p.id ? null : p.id)}>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${expandedPersonId === p.id ? 'rotate-180' : ''}`} />
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <span className="font-medium truncate">{p.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <MoneyDisplay amount={personTotals[p.id]?.total_cents || 0} size="md" animate={false} />
                   {p.id !== myPersonId && (
                     <Button variant="ghost" size="icon" onClick={() => removePerson(p.id)} className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
                   )}
@@ -957,7 +828,7 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
                   </div>
                   <div>
                     <label className="text-sm text-muted-foreground">Price (IDR)</label>
-                    <Input type="number" min={0} value={draftItem.price_cents} onChange={(e) => setDraftItem({ ...draftItem, price_cents: Math.max(0, parseInt(e.target.value || '0', 10)) })} />
+                    <Input type="number" min={0} value={draftItem.price_cents || ''} placeholder="0" onChange={(e) => setDraftItem({ ...draftItem, price_cents: Math.max(0, parseInt(e.target.value || '0', 10)) })} />
                   </div>
                 </div>
                 <DialogFooter>
@@ -994,8 +865,8 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
                 step="any"
                 min={0}
                 max={100}
-                value={taxServicePercent}
-                placeholder="e.g., 10"
+                value={taxServicePercent || ''}
+                placeholder="0"
                 onChange={(e) => setTaxServicePercent(Math.max(0, Math.min(100, parseFloat(e.target.value || '0'))))}
               />
             </div>
@@ -1034,49 +905,59 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
               const isSelected = Boolean(assignPersonId && it.participants.includes(assignPersonId));
               const animationDelay = isEditMode ? `${index * 40}ms` : isExitingEditMode ? `${index * 40}ms` : '0ms';
               return (
-                <div
-                  key={it.id}
-                  className={`p-3 rounded-xl border transition-all ${
-                    isSelected
-                      ? 'bg-primary text-primary-foreground border-primary shadow-md'
-                      : 'bg-card/60 border-border/50 hover:shadow-[var(--shadow-float)]'
-                  }`}
-                  onClick={() => assignPersonId && togglePersonInItem(it.id, assignPersonId)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if ((e.key === ' ' || e.key === 'Enter') && assignPersonId) {
-                      e.preventDefault();
-                      togglePersonInItem(it.id, assignPersonId);
-                    }
-                  }}
-                >
-                  <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4">
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">{it.name}</p>
-                      <div className={`flex items-center gap-1 ${isSelected ? 'opacity-90' : 'opacity-70'}`}>
-                        {it.participants.length === 0 ? (
-                          <span className="text-sm text-muted-foreground">No participants</span>
-                        ) : (
-                          it.participants.map(pid => {
-                            const person = people.find(p => p.id === pid);
-                            return (
-                              <Avatar key={pid} className="h-5 w-5">
-                                <AvatarFallback className="text-[9px]">{getInitials(person?.name || 'U')}</AvatarFallback>
-                              </Avatar>
-                            );
-                          })
-                        )}
+                <div key={it.id} className="relative flex items-center gap-2">
+                  {/* Main Card */}
+                  <div
+                    className={`flex-1 p-3 rounded-xl border transition-[background-color,border-color,box-shadow] duration-200 ${
+                      isSelected
+                        ? 'bg-primary text-primary-foreground border-primary shadow-md'
+                        : 'bg-card/60 border-border/50 hover:shadow-[var(--shadow-float)]'
+                    }`}
+                    onClick={() => assignPersonId && togglePersonInItem(it.id, assignPersonId)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if ((e.key === ' ' || e.key === 'Enter') && assignPersonId) {
+                        e.preventDefault();
+                        togglePersonInItem(it.id, assignPersonId);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* Left side - Item content */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{it.name}</p>
+                        <div className="flex items-center gap-2">
+                          <div className={`flex items-center gap-1 ${isSelected ? 'opacity-90' : 'opacity-70'}`}>
+                            {it.participants.length === 0 ? (
+                              <span className="text-sm text-muted-foreground">No participants</span>
+                            ) : (
+                              it.participants.map(pid => {
+                                const person = people.find(p => p.id === pid);
+                                return (
+                                  <Avatar key={pid} className="h-5 w-5">
+                                    <AvatarFallback className="text-[9px]">{getInitials(person?.name || 'U')}</AvatarFallback>
+                                  </Avatar>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Right side - Price */}
+                      <div className="flex items-center justify-end flex-shrink-0">
+                        <div className="w-20 text-right">
+                          <MoneyDisplay amount={it.price_cents} size="md" animate={false} />
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center justify-center">
-                      {/* removed checkbox icon */}
-                    </div>
-                    <div className="flex items-center justify-end gap-3">
-                      <div className="w-24 text-right">
-                        <MoneyDisplay amount={it.price_cents} size="md" animate={false} />
-                      </div>
-                      {showEditIcons && (
+                  </div>
+
+                  {/* Edit/Delete icons outside the card */}
+                  {showEditIcons && (
+                    <div className="flex flex-col gap-1 flex-shrink-0">
+                      {/* Edit Icon */}
                       <Button
                         key={`edit-${it.id}-${animationKey}`}
                         variant="ghost"
@@ -1091,30 +972,27 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
                             setTimeout(() => setMicroInteractionInProgress(false), 200);
                           }
                         }}
-                        className={`hover:text-foreground transition-all duration-300 ${
-                          isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'
-                        } ${
-                          isEditMode ? 'edit-icon-enter' : isExitingEditMode ? 'edit-icon-exit' : ''
+                        className={`h-8 w-8 rounded-md bg-yellow-100 hover:bg-yellow-200 text-yellow-700 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50 dark:text-yellow-400 transition-[background-color] duration-200 ${
+                          isEditMode ? 'edit-icon-scale-enter' : isExitingEditMode ? 'edit-icon-scale-exit' : ''
                         }`}
                         style={{ 
                           animationDelay: animationDelay
                         }}
                         aria-label="Edit price"
                         onMouseEnter={(e) => {
-                          if (isEditMode) {
-                            e.currentTarget.classList.add('edit-icon-hover');
+                          if (isEditMode && !isExitingEditMode) {
+                            e.currentTarget.style.transform = 'scale(1.1)';
                           }
                         }}
                         onMouseLeave={(e) => {
-                          if (isEditMode) {
-                            e.currentTarget.classList.remove('edit-icon-hover');
+                          if (isEditMode && !isExitingEditMode) {
+                            e.currentTarget.style.transform = 'scale(1)';
                           }
                         }}
                       >
                         <Pencil className="w-4 h-4" />
                       </Button>
-                      )}
-                      {showEditIcons && (
+                      {/* Delete Icon */}
                       <Button
                         key={`delete-${it.id}-${animationKey}`}
                         variant="ghost"
@@ -1122,7 +1000,6 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
                         onClick={(e) => { 
                           if (!isExitingEditMode || microInteractionInProgress) {
                             e.stopPropagation(); 
-                            // Add ripple effect
                             setMicroInteractionInProgress(true);
                             e.currentTarget.classList.add('delete-icon-press');
                             setTimeout(() => {
@@ -1132,21 +1009,19 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
                             removeItem(it.id); 
                           }
                         }}
-                        className={`hover:text-destructive transition-all duration-300 ${
-                          isSelected ? 'text-primary-foreground/80' : 'text-destructive'
-                        } ${
-                          isEditMode ? 'delete-icon-enter' : isExitingEditMode ? 'delete-icon-exit' : ''
+                        className={`h-8 w-8 rounded-md bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-400 transition-[background-color] duration-200 ${
+                          isEditMode ? 'delete-icon-scale-enter' : isExitingEditMode ? 'delete-icon-scale-exit' : ''
                         }`}
                         style={{ 
                           animationDelay: animationDelay
                         }}
                         onMouseEnter={(e) => {
-                          if (isEditMode) {
-                            e.currentTarget.style.transform = 'scale(1.05)';
+                          if (isEditMode && !isExitingEditMode) {
+                            e.currentTarget.style.transform = 'scale(1.1)';
                           }
                         }}
                         onMouseLeave={(e) => {
-                          if (isEditMode) {
+                          if (isEditMode && !isExitingEditMode) {
                             e.currentTarget.style.transform = 'scale(1)';
                           }
                         }}
@@ -1154,22 +1029,45 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
-                      )}
                     </div>
-                  </div>
+                  )}
                 </div>
               );
             })}
           </div>
+
+          {/* Edit Item Dialog */}
+          <Dialog open={isEditItemOpen} onOpenChange={setIsEditItemOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Item</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-3 py-2">
+                <div>
+                  <label className="text-sm text-muted-foreground">Price (IDR)</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={editItemPrice}
+                    placeholder="0"
+                    onChange={(e) => setEditItemPrice(e.target.value)}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={saveEditItem} className="btn-primary">Save</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </Card>
 
             {/* Continue button */}
             <Button 
               onClick={() => handleStepChange(3)}
               className="w-full btn-primary"
-              disabled={!allItemsHaveParticipants}
+              disabled={items.length === 0 || items.some(it => it.participants.length === 0)}
             >
-              Continue to Summary
+              Continue to Review
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </div>
@@ -1351,6 +1249,7 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
                     type="number"
                     min={0}
                     value={editItemPrice}
+                    placeholder="0"
                     onChange={(e) => setEditItemPrice(e.target.value)}
                   />
                 </div>

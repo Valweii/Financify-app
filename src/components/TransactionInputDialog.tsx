@@ -14,20 +14,43 @@ import { DollarSign, FileText, Calendar, Tag } from "lucide-react";
 interface TransactionInputDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTransaction?: any;
 }
 
-export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDialogProps) => {
-  const { createTransaction } = useFinancifyStore();
+export const TransactionInputDialog = ({ isOpen, onClose, initialTransaction }: TransactionInputDialogProps) => {
+  const { createTransaction, updateTransaction } = useFinancifyStore();
   const [formData, setFormData] = useState({
-    description: '',
-    amount: '',
-    type: 'debit' as 'credit' | 'debit',
-    category: '',
-    date: new Date().toISOString().split('T')[0]
+    description: initialTransaction?.description || '',
+    amount: initialTransaction ? Math.abs(initialTransaction.amount_cents).toString() : '',
+    type: initialTransaction?.type || 'debit' as 'credit' | 'debit',
+    category: initialTransaction?.category || '',
+    date: initialTransaction?.date || new Date().toISOString().split('T')[0]
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Update form data when initialTransaction changes
+  useEffect(() => {
+    if (initialTransaction) {
+      setFormData({
+        description: initialTransaction.description || '',
+        amount: Math.abs(initialTransaction.amount_cents).toString(),
+        type: initialTransaction.type || 'debit',
+        category: initialTransaction.category || '',
+        date: initialTransaction.date || new Date().toISOString().split('T')[0]
+      });
+    } else {
+      // Reset form for new transaction
+      setFormData({
+        description: '',
+        amount: '',
+        type: 'debit',
+        category: '',
+        date: new Date().toISOString().split('T')[0]
+      });
+    }
+  }, [initialTransaction]);
 
   // Category options separated by type
   const expenseCategories = [
@@ -39,6 +62,7 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
     { value: "Health & Fitness", label: "Health & Fitness", icon: "💪" },
     { value: "Entertainment & Leisure", label: "Entertainment & Leisure", icon: "🎬" },
     { value: "Financial Fees", label: "Financial Fees", icon: "💳" },
+    { value: "Virtual Account", label: "Virtual Account", icon: "💸" },
     { value: "Other", label: "Other", icon: "📦" }
   ];
 
@@ -103,32 +127,51 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
       const amountCents = Math.round(parseFloat(formData.amount));
       const finalAmount = formData.type === 'credit' ? amountCents : -amountCents;
       
-      await createTransaction({
-        description: formData.description,
-        amount_cents: finalAmount,
-        type: formData.type,
-        category: formData.category,
-        date: formData.date
-      });
+      if (initialTransaction) {
+        // Update existing transaction
+        console.log('Updating transaction with ID:', initialTransaction.id);
+        await updateTransaction(initialTransaction.id, {
+          description: formData.description,
+          amount_cents: finalAmount,
+          type: formData.type,
+          category: formData.category,
+          date: formData.date
+        });
+      } else {
+        // Create new transaction
+        await createTransaction({
+          description: formData.description,
+          amount_cents: finalAmount,
+          type: formData.type,
+          category: formData.category,
+          date: formData.date
+        });
+      }
 
       toast({
-        title: "Transaction Added",
-        description: "Your transaction has been successfully added.",
+        title: initialTransaction ? "Transaction Updated" : "Transaction Added",
+        description: initialTransaction 
+          ? "Your transaction has been successfully updated." 
+          : "Your transaction has been successfully added.",
       });
 
-      // Reset form
-      setFormData({
-        description: '',
-        amount: '',
-        type: 'debit',
-        category: '',
-        date: new Date().toISOString().split('T')[0]
-      });
+      // Reset form only for new transactions
+      if (!initialTransaction) {
+        setFormData({
+          description: '',
+          amount: '',
+          type: 'debit',
+          category: '',
+          date: new Date().toISOString().split('T')[0]
+        });
+      }
       onClose();
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to add transaction. Please try again.",
+        description: initialTransaction 
+          ? "Failed to update transaction. Please try again."
+          : "Failed to add transaction. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -156,7 +199,9 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
         } : {}}
       >
         <DialogHeader className="rounded-t-3xl">
-          <DialogTitle className="text-xl font-bold">Add New Transaction</DialogTitle>
+          <DialogTitle className="text-xl font-bold">
+            {initialTransaction ? 'Edit Transaction' : 'Add New Transaction'}
+          </DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -271,7 +316,10 @@ export const TransactionInputDialog = ({ isOpen, onClose }: TransactionInputDial
               disabled={isSubmitting}
               className="flex-1 rounded-2xl h-12 font-semibold bg-primary hover:bg-primary/90"
             >
-              {isSubmitting ? 'Adding...' : 'Add'}
+              {isSubmitting 
+                ? (initialTransaction ? 'Updating...' : 'Adding...') 
+                : (initialTransaction ? 'Update' : 'Add')
+              }
             </Button>
           </div>
         </form>

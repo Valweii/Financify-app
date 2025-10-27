@@ -192,6 +192,14 @@ All colors MUST be HSL.
     animation: scaleInFade 200ms ease-out;
   }
 
+  .edit-icon-scale-enter {
+    animation: scaleUpEnter 300ms ease-out;
+  }
+
+  .delete-icon-scale-enter {
+    animation: scaleUpEnter 300ms ease-out;
+  }
+
   .edit-icon-hover {
     animation: wiggle 0.3s ease-in-out;
   }
@@ -255,6 +263,14 @@ All colors MUST be HSL.
 
   .delete-icon-exit {
     animation: scaleOutFade 300ms ease-in;
+  }
+
+  .edit-icon-scale-exit {
+    animation: scaleDownExit 400ms ease-out forwards !important;
+  }
+
+  .delete-icon-scale-exit {
+    animation: scaleDownExit 400ms ease-out forwards !important;
   }
 
   .edit-mode-button.exiting {
@@ -435,6 +451,78 @@ All colors MUST be HSL.
     }
   }
 
+  /* Scale animations for edit mode icons */
+  @keyframes scaleUpEnter {
+    0% {
+      transform: scale(0);
+      opacity: 0;
+    }
+    50% {
+      transform: scale(1.1);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes scaleDownExit {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(0);
+      opacity: 0;
+    }
+  }
+
+  /* Progress bar animations */
+  .progress-bar-fill {
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: left;
+  }
+
+  .progress-bar-fill-forward {
+    animation: progressFillForward 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards, progressGlow 0.6s ease-in-out forwards;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.4), 0 0 16px rgba(34, 197, 94, 0.2);
+  }
+
+  .progress-bar-fill-backward {
+    animation: progressFillBackward 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards, progressGlow 0.6s ease-in-out forwards;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.4), 0 0 16px rgba(34, 197, 94, 0.2);
+  }
+
+  @keyframes progressFillForward {
+    from {
+      width: var(--progress-from);
+    }
+    to {
+      width: var(--progress-to);
+    }
+  }
+
+  @keyframes progressFillBackward {
+    from {
+      width: var(--progress-from);
+    }
+    to {
+      width: var(--progress-to);
+    }
+  }
+
+  @keyframes progressGlow {
+    0% {
+      box-shadow: 0 0 4px rgba(34, 197, 94, 0.2), 0 0 8px rgba(34, 197, 94, 0.1);
+    }
+    50% {
+      box-shadow: 0 0 12px rgba(34, 197, 94, 0.6), 0 0 24px rgba(34, 197, 94, 0.3);
+    }
+    100% {
+      box-shadow: 0 0 8px rgba(34, 197, 94, 0.4), 0 0 16px rgba(34, 197, 94, 0.2);
+    }
+  }
+
   /* Press interaction styles */
   .press-interactive {
     position: relative;
@@ -481,6 +569,29 @@ All colors MUST be HSL.
     .fab-container {
       bottom: 8rem;
       right: 1rem;
+    }
+  }
+
+  /* Bottom Sheet Slide Up Animation */
+  @keyframes slideUp {
+    0% {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideDown {
+    0% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(100%);
+      opacity: 0;
     }
   }
 }
