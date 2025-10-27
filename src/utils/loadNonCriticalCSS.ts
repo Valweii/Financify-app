@@ -34,7 +34,7 @@ export const loadNonCriticalCSS = () => {
       ]);
       
     } catch (error) {
-      console.warn('Failed to load some non-critical CSS:', error);
+      // Failed to load some non-critical CSS
     }
   };
 

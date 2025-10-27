@@ -80,7 +80,6 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
         description: `Found ${categorizedTransactions.length} transactions and automatically categorized them. Review and edit if needed.`,
       });
     } catch (error) {
-      console.error('PDF processing error:', error);
       setError('Failed to process PDF. Please make sure it\'s a valid BCA bank statement.');
     } finally {
       setIsProcessing(false);
@@ -160,7 +159,6 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
       // Close the form
       onClose();
     } catch (error) {
-      console.error('Error saving transactions:', error);
       setError('Failed to save transactions. Please try again.');
     } finally {
       setIsSaving(false);
@@ -219,7 +217,6 @@ export const PDFUploadForm = ({ onClose }: PDFUploadFormProps) => {
       const categorized = await categorizeTransactionsWithAI(transactions);
       return categorized;
     } catch (err) {
-      console.error('Failed to categorize transactions:', err);
       toast({
         title: "Categorization Warning",
         description: "Some transactions may not be properly categorized. You can edit them manually.",

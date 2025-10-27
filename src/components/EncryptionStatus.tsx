@@ -40,22 +40,39 @@ export const EncryptionStatus = () => {
     setShowSetupFromDevice(true);
   };
 
-  const handleResetWithBackupCode = async (backupCode: string, newPassword: string) => {
+  const handleResetWithBackupCode = async (backupCode: string) => {
     if (!resetWithBackupCode) return;
     
-    const result = await resetWithBackupCode(backupCode, newPassword);
+    const result = await resetWithBackupCode(backupCode);
     if (result.success) {
       setShowSetupFromDevice(false);
-      toast({ 
-        title: 'Encryption reset', 
-        description: 'Your encryption key has been restored from backup code.' 
-      });
+      
+      if (result.backupCodes) {
+        // New backup codes were generated
+        toast({ 
+          title: 'Encryption restored', 
+          description: 'Your encryption key has been restored! New backup codes have been generated.' 
+        });
+        
+        // Copy new backup codes to clipboard
+        navigator.clipboard.writeText(result.backupCodes.join('\n'));
+        toast({
+          title: "New backup codes copied",
+          description: "Your new backup codes have been copied to clipboard.",
+        });
+      } else {
+        toast({ 
+          title: 'Encryption restored', 
+          description: 'Your encryption key has been restored from backup code.' 
+        });
+      }
+      
       // Force reload transactions after a short delay to ensure state is updated
       setTimeout(async () => {
         try { 
           await loadTransactions(); 
         } catch (error) {
-          console.error('Failed to reload transactions after backup recovery:', error);
+          // Failed to reload transactions after backup recovery
         }
       }, 100);
     } else {
@@ -144,32 +161,30 @@ export const EncryptionStatus = () => {
 // Setup from Another Device Form Component
 interface SetupFromDeviceFormProps {
   onCancel: () => void;
-  onComplete: (backupCode: string, newPassword: string) => Promise<void>;
+  onComplete: (backupCode: string) => Promise<void>;
 }
 
 const SetupFromDeviceForm = ({ onCancel, onComplete }: SetupFromDeviceFormProps) => {
   const [backupCode, setBackupCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async () => {
     if (!backupCode.trim()) {
       return;
     }
-    if (newPassword.length < 8) {
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      return;
-    }
 
     setIsLoading(true);
     try {
-      await onComplete(backupCode, newPassword);
+      await onComplete(backupCode.trim());
+    } catch (error) {
+      // Failed to setup from device
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const isAlphanumeric = (str: string) => {
+    return /^[A-Z0-9]+$/.test(str);
   };
 
   return (
@@ -195,26 +210,6 @@ const SetupFromDeviceForm = ({ onCancel, onComplete }: SetupFromDeviceFormProps)
             className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
           />
         </div>
-        <div>
-          <label className="text-sm text-muted-foreground">New Password</label>
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="Create new encryption password (min 8 characters)"
-            className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
-          />
-        </div>
-        <div>
-          <label className="text-sm text-muted-foreground">Confirm New Password</label>
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Confirm new encryption password"
-            className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
-          />
-        </div>
       </div>
 
       <div className="flex gap-2">
@@ -228,7 +223,7 @@ const SetupFromDeviceForm = ({ onCancel, onComplete }: SetupFromDeviceFormProps)
         </Button>
         <Button 
           onClick={handleSubmit}
-          disabled={!backupCode.trim() || newPassword.length < 8 || newPassword !== confirmPassword || isLoading}
+          disabled={backupCode.length != 8 || !isAlphanumeric(backupCode)}
           size="sm"
           className="flex-1 btn-primary"
         >

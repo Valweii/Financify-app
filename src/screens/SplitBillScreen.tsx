@@ -315,7 +315,6 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
         }
           // Do not auto-advance; user reviews items first
       } catch (e) {
-        console.error(e);
         toast({ title: "OCR failed", description: "Could not read text from image. Please add items manually." });
         // Do not auto-advance on error
       } finally {
@@ -1217,7 +1216,6 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
                       toast({ title: 'Split bill saved', description: 'Split bill history has been recorded.' });
                     }
                   } catch (error) {
-                    console.error('Error saving split bill:', error);
                     toast({ title: 'Error', description: 'Failed to save split bill. Please try again.' });
                   } finally {
                   if (onNavigate) {

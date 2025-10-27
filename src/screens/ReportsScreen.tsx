@@ -50,11 +50,6 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
   const [amountMax, setAmountMax] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   
-  // Swipe state
-  const [swipedTransactionId, setSwipedTransactionId] = useState<string | null>(null);
-  const [swipeStartX, setSwipeStartX] = useState<number | null>(null);
-  const [swipeCurrentX, setSwipeCurrentX] = useState<number | null>(null);
-  
   // Filter card ref for outside click detection
   const filterCardRef = useRef<HTMLDivElement>(null);
 
@@ -70,13 +65,11 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
       // Add a small delay to prevent immediate collapse when clicking the filter button
       const timeoutId = setTimeout(() => {
         document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('touchstart', handleClickOutside);
       }, 100);
 
       return () => {
         clearTimeout(timeoutId);
         document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('touchstart', handleClickOutside);
       };
     }
   }, [showFilters]);
@@ -228,42 +221,8 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
 
   const hasActiveFilters = searchQuery || selectedCategories.length > 0 || selectedTypes.length > 0 || dateFrom || dateTo || amountMin || amountMax;
 
-  // Swipe handlers
-  const handleSwipeStart = (e: React.TouchEvent, transactionId: string) => {
-    // Clear any existing swipe states
-    setSwipedTransactionId(null);
-    setSwipeStartX(null);
-    setSwipeCurrentX(null);
-    
-    setSwipeStartX(e.touches[0].clientX);
-    setSwipeCurrentX(e.touches[0].clientX);
-    setSwipedTransactionId(transactionId);
-  };
-
-  const handleSwipeMove = (e: React.TouchEvent) => {
-    if (swipeStartX !== null && swipedTransactionId) {
-      setSwipeCurrentX(e.touches[0].clientX);
-    }
-  };
-
-  const handleSwipeEnd = () => {
-    if (swipeStartX !== null && swipeCurrentX !== null && swipedTransactionId) {
-      const swipeDistance = swipeCurrentX - swipeStartX;
-      if (swipeDistance < -50) {
-        // Swipe left - reveal delete button
-        setSwipedTransactionId(swipedTransactionId);
-      } else {
-        // Swipe right or insufficient distance - hide delete button
-        setSwipedTransactionId(null);
-      }
-    }
-    setSwipeStartX(null);
-    setSwipeCurrentX(null);
-  };
-
   const handleDeleteTransaction = (transactionId: string) => {
     deleteTransaction(transactionId);
-    setSwipedTransactionId(null);
   };
 
 
@@ -546,13 +505,13 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                         <p className="font-medium truncate flex-1 mr-2">{truncateDescription(transaction.description)}</p>
                         <p className={`font-bold whitespace-nowrap ${getAmountColor()}`}>
                           {formatAmountNoCurrency(transaction.amount_cents)}
-                        </p>
-                      </div>
+                          </p>
+                        </div>
                       <div className="flex items-center justify-between text-sm text-muted-foreground">
                         <p className="truncate">{transaction.category}</p>
                         <p className="whitespace-nowrap ml-2">{new Date(transaction.date).toLocaleDateString(transactionDateFormat)}</p>
-                      </div>
-                    </Card>
+                    </div>
+                  </Card>
                   );
                 })}
               </div>
@@ -647,8 +606,8 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                         setIsCategoryModalOpen(true);
                       }}
                     >
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
                           <div className="min-w-0">
                             <p className="font-bold truncate">{stat.category}</p>
                             <p className="text-sm text-muted-foreground truncate">
@@ -658,24 +617,24 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                           <p className={`font-bold whitespace-nowrap ${getAmountColor()}`}>
                             {formatAmountNoCurrency(stat.total)}
                           </p>
-                        </div>
-                      
-                        {(stat.income > 0 || stat.expense > 0) && (
-                          <div className="grid grid-cols-2 gap-3 text-sm">
-                            {stat.income > 0 && (
-                              <div className="text-income">
-                                Income: <span className="font-semibold">{formatAmountNoCurrency(stat.income)}</span>
-                              </div>
-                            )}
-                            {stat.expense > 0 && (
-                              <div className="text-expense">
-                                Expense: <span className="font-semibold">{formatAmountNoCurrency(stat.expense)}</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
-                    </Card>
+                      
+                      {(stat.income > 0 || stat.expense > 0) && (
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          {stat.income > 0 && (
+                            <div className="text-income">
+                                Income: <span className="font-semibold">{formatAmountNoCurrency(stat.income)}</span>
+                            </div>
+                          )}
+                          {stat.expense > 0 && (
+                            <div className="text-expense">
+                                Expense: <span className="font-semibold">{formatAmountNoCurrency(stat.expense)}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </Card>
                   );
                 })}
               </div>
@@ -848,12 +807,6 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
           {/* Add Transaction moved to Import tab */}
           <div 
             className="space-y-2 pt-4"
-            onClick={() => {
-              // Close any open swipe states when clicking outside
-              setSwipedTransactionId(null);
-              setSwipeStartX(null);
-              setSwipeCurrentX(null);
-            }}
           >
             {/* Show transaction count info */}
             {transactions.length > 0 && (
@@ -902,19 +855,12 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                  };
                  
                  return (
-                   <div key={t.id} className="relative overflow-hidden">
-                     <Card 
-                       className={`financial-card p-4 cursor-pointer hover:bg-accent/50 transition-all duration-300 ${
-                         swipedTransactionId === t.id ? '-translate-x-20' : 'translate-x-0'
-                       }`}
-                       onTouchStart={(e) => handleSwipeStart(e, t.id)}
-                       onTouchMove={handleSwipeMove}
-                       onTouchEnd={handleSwipeEnd}
+               <div key={t.id} className="relative overflow-hidden">
+                 <Card 
+                       className="financial-card p-4 cursor-pointer hover:bg-accent/50 transition-all duration-300"
                        onClick={() => {
-                         if (swipedTransactionId !== t.id) {
-                           setSelectedTransactionDetail(t);
-                           setIsTransactionDetailOpen(true);
-                         }
+                         setSelectedTransactionDetail(t);
+                         setIsTransactionDetailOpen(true);
                        }}
                      >
                        <div className="flex items-center justify-between mb-2">
@@ -928,23 +874,6 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                          <p className="whitespace-nowrap ml-2">{new Date(t.date).toLocaleDateString(transactionDateFormat)}</p>
                        </div>
                      </Card>
-                     
-                     {/* Delete Button - Revealed on Swipe */}
-                     <div className={`absolute right-0 top-0 h-full w-20 flex items-center justify-center transition-transform duration-300 ${
-                       swipedTransactionId === t.id ? 'translate-x-0' : 'translate-x-full'
-                     }`}>
-                       <Button
-                         variant="destructive"
-                         size="sm"
-                         onClick={(e) => {
-                           e.stopPropagation();
-                           handleDeleteTransaction(t.id);
-                         }}
-                         className="h-full w-16 rounded-lg"
-                       >
-                         Delete
-                       </Button>
-                     </div>
                    </div>
                  );
                }))}
@@ -1023,7 +952,7 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                       >
                         Amount
                       </button>
-                    </div>
+                         </div>
                     
                     {/* Circular Sort Direction Button */}
                     <Button
@@ -1034,9 +963,9 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                     >
                       <ArrowUpDown className={`w-4 h-4 transition-transform ${categorySortDir === 'asc' ? 'rotate-180' : ''}`} />
                     </Button>
-                  </div>
-                </div>
-              </div>
+                       </div>
+                     </div>
+                     </div>
 
               {/* Transactions List */}
               <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4">
@@ -1088,12 +1017,12 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                             <p className={`font-bold whitespace-nowrap flex-shrink-0 ${getAmountColor()}`}>
                               {formatAmountNoCurrency(transaction.amount_cents)}
                             </p>
-                          </div>
+                   </div>
                           <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
                             <p className="truncate flex-1 min-w-0">{transaction.source}</p>
                             <p className="whitespace-nowrap flex-shrink-0">{new Date(transaction.date).toLocaleDateString('en-US')}</p>
-                          </div>
-                        </Card>
+                   </div>
+                 </Card>
                       );
                     })}
                 </div>
@@ -1166,20 +1095,20 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
 
               {/* Action Buttons */}
               <div className="flex gap-3 pt-4 border-t border-border">
-                <Button
+                   <Button
                   onClick={handleEditTransaction}
-                  className="flex-1 rounded-full border-2 border-green-500 text-green-500 hover:bg-green-500 hover:text-white transition-colors"
+                  className="flex-1 rounded-full border-2 bg-background text-foreground border-green-500 hover:bg-green-500 hover:text-white transition-colors"
                 >
                   Edit
                 </Button>
                 <Button
                   onClick={handleDeleteTransactionFromDetail}
                   className="flex-1 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
-                >
-                  Delete
-                </Button>
-              </div>
-            </div>
+                   >
+                     Delete
+                   </Button>
+                 </div>
+               </div>
           </DialogContent>
         </Dialog>
       )}
@@ -1202,8 +1131,8 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
               Are you sure you want to delete this transaction? This action cannot be undone.
             </p>
             <div className="flex gap-3">
-              <Button
-                variant="outline"
+                <Button 
+                  variant="outline"
                 onClick={() => setIsDeleteConfirmOpen(false)}
                 className="flex-1 rounded-full"
               >
@@ -1214,8 +1143,8 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                 className="flex-1 rounded-full bg-red-500 text-white hover:bg-red-600"
               >
                 Delete
-              </Button>
-            </div>
+                </Button>
+              </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -38,7 +38,6 @@ export async function categorizeTransactionsWithAI(
   
   // Fallback to rule-based if no API key
   if (!apiKey) {
-    console.warn("OpenAI API key not found, using rule-based categorization");
     return categorizeTransactionsRuleBased(transactions);
   }
 
@@ -56,7 +55,6 @@ export async function categorizeTransactionsWithAI(
 
     return categorizedBatches.flat();
   } catch (error) {
-    console.error("AI categorization failed, falling back to rule-based:", error);
     return categorizeTransactionsRuleBased(transactions);
   }
 }
@@ -180,7 +178,6 @@ Return a JSON array of objects with "description" and "category" fields. Match d
       };
     });
   } catch (error) {
-    console.error("OpenAI API call failed:", error);
     // Fallback to "Other" for all
     return descriptions.map(desc => ({ description: desc, category: 'Other' }));
   }

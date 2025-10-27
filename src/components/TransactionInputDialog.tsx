@@ -129,7 +129,6 @@ export const TransactionInputDialog = ({ isOpen, onClose, initialTransaction }: 
       
       if (initialTransaction) {
         // Update existing transaction
-        console.log('Updating transaction with ID:', initialTransaction.id);
         await updateTransaction(initialTransaction.id, {
           description: formData.description,
           amount_cents: finalAmount,

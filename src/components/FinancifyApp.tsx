@@ -7,12 +7,15 @@ import { SettingsScreen } from "@/screens/SettingsScreen";
 import { AuthScreen } from "./AuthScreen";
 import { FloatingActionButton } from "./FloatingActionButton";
 import { TransactionInputDialog } from "./TransactionInputDialog";
+import { EncryptionRecovery } from "./EncryptionRecovery";
 import { useFinancifyStore } from "@/store";
 import { supabase } from "@/integrations/supabase/client";
 import { useEncryption } from "@/hooks/useEncryption";
-import { EncryptionSetup } from "@/components/EncryptionSetup";
-import { FirstTimeEncryption } from "@/components/FirstTimeEncryption";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/components/ui/use-toast";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Key, Shield, AlertTriangle } from "lucide-react";
 
 export const FinancifyApp = () => {
   const [activeTab, setActiveTab] = useState<NavigationTab>("dashboard");
@@ -20,8 +23,13 @@ export const FinancifyApp = () => {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showTransactionDialog, setShowTransactionDialog] = useState(false);
   const [splitBillResetFn, setSplitBillResetFn] = useState<(() => void) | null>(null);
+  const [showEncryptionRecovery, setShowEncryptionRecovery] = useState(false);
+  const [isInitializingEncryption, setIsInitializingEncryption] = useState(false);
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [showBackupCodes, setShowBackupCodes] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { 
     user, 
     isAuthenticated, 
@@ -29,9 +37,10 @@ export const FinancifyApp = () => {
     setSession, 
     loadTransactions, 
     loadProfile,
-    encryptionKey
+    encryptionKey,
+    setEncryptionKey
   } = useFinancifyStore();
-  const { isKeySetup, isKeyLoading } = useEncryption();
+  const { isKeySetup, isKeyLoading, initializeAutoEncryption } = useEncryption();
 
   useEffect(() => {
     // Set up auth state listener
@@ -82,6 +91,57 @@ export const FinancifyApp = () => {
       }, 0);
     }
   }, [isAuthenticated, encryptionKey, loadTransactions]);
+
+  // Handle automatic encryption initialization for new users
+  useEffect(() => {
+    const handleEncryptionInitialization = async () => {
+      if (!isAuthenticated || isKeyLoading || isInitializingEncryption) return;
+      
+      // If user is authenticated but has no encryption key and no key setup, initialize auto encryption
+      if (!encryptionKey && !isKeySetup) {
+        setIsInitializingEncryption(true);
+        try {
+          const result = await initializeAutoEncryption();
+          if (result.success && result.backupCodes) {
+            setBackupCodes(result.backupCodes);
+            setShowBackupCodes(true);
+            setEncryptionKey(result.key!);
+            await loadTransactions();
+            
+            toast({
+              title: "Encryption initialized",
+              description: "Your data is now automatically encrypted!",
+            });
+          } else {
+            toast({
+              title: "Encryption setup failed",
+              description: result.error || "Failed to initialize encryption",
+              variant: "destructive"
+            });
+          }
+        } catch (error) {
+          toast({
+            title: "Encryption setup failed",
+            description: "An error occurred during encryption setup",
+            variant: "destructive"
+          });
+        } finally {
+          setIsInitializingEncryption(false);
+        }
+      }
+      // If user is authenticated but has no encryption key but key is set up, show recovery
+      else if (!encryptionKey && isKeySetup) {
+        setShowEncryptionRecovery(true);
+      }
+    };
+
+    handleEncryptionInitialization();
+  }, [isAuthenticated, isKeyLoading, encryptionKey, isKeySetup, initializeAutoEncryption, setEncryptionKey, loadTransactions, toast]);
+
+  const handleEncryptionRecoverySuccess = async () => {
+    setShowEncryptionRecovery(false);
+    await loadTransactions();
+  };
 
   // Set initial scroll position and handle scroll position changes
   useEffect(() => {
@@ -187,11 +247,25 @@ export const FinancifyApp = () => {
     return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
   }
 
-  // Show encryption setup/unlock if needed before entering the app
-  // Show the gate only when the auto-restore has finished (isKeyLoading === false)
-  // and we still have no active key while encryption is enabled or set up.
-  const needsEncryptionGate = isAuthenticated && !isKeyLoading && (!encryptionKey) && isKeySetup;
-  if (needsEncryptionGate) {
+  // Show loading screen during encryption initialization
+  if (isInitializingEncryption || (isKeyLoading && !encryptionKey)) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="flex items-center justify-center mb-4">
+            <Shield className="w-8 h-8 text-primary animate-pulse" />
+          </div>
+          <h1 className="text-2xl font-bold text-primary mb-2">Financify</h1>
+          <p className="text-muted-foreground">
+            {isInitializingEncryption ? "Setting up encryption..." : "Loading..."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show backup codes for new users
+  if (showBackupCodes && backupCodes.length > 0) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-md mx-auto bg-background min-h-screen">
@@ -201,15 +275,60 @@ export const FinancifyApp = () => {
             </div>
           </div>
 
-          {/* Encryption Setup */}
           <main className="px-4 py-4">
             <div className="space-y-6">
               <div className="space-y-2">
-                <h1 className="text-2xl font-bold">Welcome to Financify</h1>
-                <p className="text-muted-foreground">Set up end-to-end encryption to protect your financial data</p>
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                  <Shield className="w-6 h-6 text-green-500" />
+                  Encryption Ready
+                </h1>
+                <p className="text-muted-foreground">
+                  Your data is now automatically encrypted. Save these backup codes safely!
+                </p>
               </div>
-              {/* If encryption not set up yet, generate and display password once */}
-              {!isKeySetup ? <FirstTimeEncryption /> : <EncryptionSetup />}
+
+              <Card className="p-4">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Key className="w-5 h-5 text-orange-500" />
+                    <h3 className="font-semibold">Backup Codes</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {backupCodes.map((code, index) => (
+                      <div key={index} className="p-2 bg-muted rounded font-mono text-sm">
+                        {code}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Store these codes safely. You'll need them to recover your encryption key if you lose access to this device.
+                  </p>
+                </div>
+              </Card>
+
+              <Button
+                onClick={() => {
+                  navigator.clipboard.writeText(backupCodes.join('\n'));
+                  toast({
+                    title: "Backup codes copied",
+                    description: "Your backup codes have been copied to clipboard.",
+                  });
+                }}
+                variant="outline"
+                className="w-full"
+              >
+                Copy All Codes
+              </Button>
+
+              <Button
+                onClick={() => {
+                  setShowBackupCodes(false);
+                  setBackupCodes([]);
+                }}
+                className="w-full"
+              >
+                I've Saved My Codes - Continue
+              </Button>
             </div>
           </main>
         </div>
@@ -282,6 +401,12 @@ export const FinancifyApp = () => {
       <TransactionInputDialog 
         isOpen={showTransactionDialog}
         onClose={() => setShowTransactionDialog(false)}
+      />
+
+      <EncryptionRecovery
+        isOpen={showEncryptionRecovery}
+        onClose={() => setShowEncryptionRecovery(false)}
+        onSuccess={handleEncryptionRecoverySuccess}
       />
 
     </div>

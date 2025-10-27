@@ -238,9 +238,9 @@ export const setEncryptionEnabled = (enabled: boolean): void => {
 /**
  * Generate backup codes for key recovery
  */
-export const generateBackupCodes = (): string[] => {
+export const generateBackupCodes = (count: number = 8): string[] => {
   const codes: string[] = [];
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < count; i++) {
     const randomBytes = crypto.getRandomValues(new Uint8Array(4));
     const code = Array.from(randomBytes)
       .map(b => b.toString(16).padStart(2, '0'))
@@ -321,7 +321,7 @@ export const storeEncryptedOriginalKey = async (originalKey: CryptoKey, backupCo
     // Store in localStorage
     localStorage.setItem('financify_encrypted_original_key', JSON.stringify(encryptedKeys));
   } catch (error) {
-    console.error('Failed to store encrypted original key:', error);
+    // Failed to store encrypted original key
   }
 };
 
@@ -346,7 +346,6 @@ export const restoreOriginalKeyWithBackupCode = async (backupCode: string): Prom
     
     return importRawKey(rawKey);
   } catch (error) {
-    console.error('Failed to restore original key:', error);
     return null;
   }
 };

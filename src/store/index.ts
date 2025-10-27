@@ -169,7 +169,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Database error loading split bill history:', error);
         // Fallback: load from local storage if database table doesn't exist
         const localHistory = localStorage.getItem(`split_bill_history_${user.id}`);
         if (localHistory) {
@@ -195,7 +194,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       
       set({ splitBillHistory: history });
     } catch (error) {
-      console.error('Error loading split bill history:', error);
       // Fallback: load from local storage if database fails
       const localHistory = localStorage.getItem(`split_bill_history_${user.id}`);
       if (localHistory) {
@@ -208,7 +206,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   saveSplitBillHistory: async (splitBill) => {
     const { user } = get();
     if (!user) {
-      console.error('No user found when saving split bill history');
       return;
     }
     
@@ -230,7 +227,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
         .single();
 
       if (error) {
-        console.error('Database error saving split bill:', error);
         // Fallback: save locally if database table doesn't exist
         const newSplitBill: SplitBillHistory = {
           ...splitBill,
@@ -252,7 +248,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       
       get().addSplitBillHistory(newSplitBill);
     } catch (error) {
-      console.error('Error saving split bill history:', error);
       // Fallback: save locally if database fails
       const newSplitBill: SplitBillHistory = {
         ...splitBill,
@@ -316,7 +311,7 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
           const encryptedTransactions = await encryptedStore.loadEncryptedTransactions(encryptionKey);
           allTransactions = [...encryptedTransactions];
         } catch (error) {
-          console.error('Failed to load encrypted transactions:', error);
+          // Failed to load encrypted transactions
         }
       }
 
@@ -331,7 +326,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
             .order('date', { ascending: false });
 
           if (error) {
-            console.error('❌ Error loading unencrypted transactions:', error);
             throw error;
           }
 
@@ -350,7 +344,7 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
           
           allTransactions = [...unencryptedTransactions];
         } catch (error) {
-          console.error('Failed to load unencrypted transactions:', error);
+          // Failed to load unencrypted transactions
         }
       }
 
@@ -359,7 +353,7 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       
       set({ transactions: allTransactions });
     } catch (error) {
-      console.error('Error loading transactions:', error);
+      // Error loading transactions
     } finally {
       set({ isLoading: false });
     }
@@ -437,7 +431,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       
       get().addTransactions(newTransactions);
     } catch (error) {
-      console.error('Error saving transactions:', error);
       throw error;
     } finally {
       set({ isLoading: false });
@@ -502,7 +495,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       // Ensure consistency with server state
       await get().loadTransactions();
     } catch (error) {
-      console.error('Error creating transaction:', error);
       throw error;
     } finally {
       set({ isLoading: false });
@@ -512,8 +504,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   updateTransaction: async (id, transaction) => {
     const { user, transactions, encryptionKey } = get();
     if (!user) throw new Error('User not authenticated');
-
-    console.log('Store updateTransaction called with ID:', id, 'Transaction:', transaction);
 
     set({ isLoading: true });
     try {
@@ -540,8 +530,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
         set(state => ({
           transactions: state.transactions.map(t => t.id === id ? updatedTransaction : t)
         }));
-        
-        console.log('Updated local state for encrypted transaction');
         
         // Reload transactions to ensure UI consistency
         await get().loadTransactions();
@@ -584,13 +572,10 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
         transactions: state.transactions.map(t => t.id === id ? updatedTransaction : t)
       }));
       
-      console.log('Updated local state for unencrypted transaction');
-      
       // Reload transactions to ensure UI consistency
       await get().loadTransactions();
       
     } catch (error) {
-      console.error('Error updating transaction:', error);
       throw error;
     } finally {
       set({ isLoading: false });
@@ -615,7 +600,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
         transactions: state.transactions.filter(t => t.id !== id)
       }));
     } catch (error) {
-      console.error('Error deleting transaction:', error);
       throw error;
     } finally {
       set({ isLoading: false });
@@ -636,7 +620,7 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
       if (error) throw error;
       set({ profile: data });
     } catch (error) {
-      console.error('Error loading profile:', error);
+      // Error loading profile
     }
   },
 

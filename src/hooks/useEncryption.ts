@@ -36,12 +36,15 @@ export interface UseEncryptionReturn {
   isKeySetup: boolean;
   isKeyLoading: boolean;
   currentKey: CryptoKey | null;
-  setupEncryption: (password: string) => Promise<{ success: boolean; backupCodes?: string[]; error?: string }>;
+  setupEncryption: (password: string) => Promise<{ success: boolean; backupCodes?: string[]; error?: string; key?: CryptoKey }>;
   unlockEncryption: (password: string) => Promise<{ success: boolean; error?: string }>;
   clearEncryption: () => void;
   
   // Add reset with backup code API
-  resetWithBackupCode: (code: string, newPassword: string) => Promise<{ success: boolean; backupCodes?: string[]; error?: string }>;
+  resetWithBackupCode: (code: string) => Promise<{ success: boolean; key?: CryptoKey; backupCodes?: string[]; error?: string }>;
+  
+  // Auto encryption
+  initializeAutoEncryption: () => Promise<{ success: boolean; backupCodes?: string[]; error?: string }>;
   
   // Encryption operations
   encrypt: (data: any) => Promise<EncryptedData | null>;
@@ -92,11 +95,9 @@ const storeBackupCodeHashes = async (codes: string[], originalKey: CryptoKey): P
       .upsert(backupCodeData, { onConflict: 'user_id,code_hash' });
 
     if (error) {
-      console.error('Failed to store backup code hashes and encrypted keys:', error);
       throw error;
     }
   } catch (error) {
-    console.error('Error storing backup code hashes and encrypted keys:', error);
     // Don't throw - this is a fallback feature
   }
 };
@@ -134,7 +135,6 @@ const validateBackupCodeHash = async (code: string): Promise<CryptoKey | null> =
     
     return originalKey;
   } catch (error) {
-    console.error('Error validating backup code and restoring key:', error);
     return null;
   }
 };
@@ -167,7 +167,6 @@ export const useEncryption = (): UseEncryptionReturn => {
             setEncryptionEnabledLocal(false);
           }
         } catch (error) {
-          console.error('❌ Failed to restore cached key:', error);
           setEncryptionEnabledLocal(false);
         }
       }
@@ -179,7 +178,7 @@ export const useEncryption = (): UseEncryptionReturn => {
 
 
   // Setup encryption with password
-  const setupEncryption = useCallback(async (password: string): Promise<{ success: boolean; backupCodes?: string[]; error?: string }> => {
+  const setupEncryption = useCallback(async (password: string): Promise<{ success: boolean; backupCodes?: string[]; error?: string; key?: CryptoKey }> => {
     try {
       setIsKeyLoading(true);
       
@@ -199,7 +198,61 @@ export const useEncryption = (): UseEncryptionReturn => {
         const verifierEncrypted = await encryptData(verifierPlain, encryptionKey.key);
         localStorage.setItem('financify_key_verifier', JSON.stringify(verifierEncrypted));
       } catch (e) {
-        console.warn('Failed to persist verifier:', e);
+        // Failed to persist verifier
+      }
+
+      // Generate and store backup codes
+      const backupCodes = generateBackupCodes();
+      storeBackupCodes(backupCodes);
+      
+      // Store the original encryption key encrypted with backup codes
+      await storeEncryptedOriginalKey(encryptionKey.key, backupCodes);
+      
+      // Store backup code hashes and encrypted original key in Supabase for cross-device recovery
+      await storeBackupCodeHashes(backupCodes, encryptionKey.key);
+      
+      // Set current key for immediate use
+      setCurrentKey(encryptionKey.key);
+      setIsKeySetup(true);
+      
+      try { await cacheCryptoKey(encryptionKey.key); } catch {}
+      try { 
+        setEncryptionKey(encryptionKey.key); 
+        setEncryptionEnabledLocal(true); // Persist to localStorage
+      } catch {}
+      return { success: true, backupCodes, key: encryptionKey.key };
+    } catch (error) {
+      return { success: false, error: 'Failed to setup encryption' };
+    } finally {
+      setIsKeyLoading(false);
+    }
+  }, []);
+
+  // Initialize automatic encryption for new users
+  const initializeAutoEncryption = useCallback(async (): Promise<{ success: boolean; backupCodes?: string[]; error?: string }> => {
+    try {
+      setIsKeyLoading(true);
+      
+      // Generate a random password for automatic encryption
+      const randomPassword = generateRandomPassword();
+      
+      // Generate new encryption key
+      const encryptionKey = await generateEncryptionKey(randomPassword);
+      
+      // Store key data (salt + version)
+      storeEncryptionKey(encryptionKey);
+      
+      // Create and store a verifier encrypted with the derived key for future password validation
+      try {
+        const verifierPlain = {
+          t: 'financify_key_verifier',
+          ts: Date.now(),
+          n: Math.random(),
+        };
+        const verifierEncrypted = await encryptData(verifierPlain, encryptionKey.key);
+        localStorage.setItem('financify_key_verifier', JSON.stringify(verifierEncrypted));
+      } catch (e) {
+        // Failed to persist verifier
       }
 
       // Generate and store backup codes
@@ -223,12 +276,21 @@ export const useEncryption = (): UseEncryptionReturn => {
       } catch {}
       return { success: true, backupCodes };
     } catch (error) {
-      console.error('❌ Failed to setup encryption:', error);
-      return { success: false, error: 'Failed to setup encryption' };
+      return { success: false, error: 'Failed to initialize encryption' };
     } finally {
       setIsKeyLoading(false);
     }
   }, []);
+
+  // Helper function to generate random password
+  const generateRandomPassword = (): string => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < 32; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
 
   // Unlock encryption with password
   const unlockEncryption = useCallback(async (password: string): Promise<{ success: boolean; error?: string }> => {
@@ -285,7 +347,6 @@ export const useEncryption = (): UseEncryptionReturn => {
       
       return { success: true };
     } catch (error) {
-      console.error('❌ Failed to unlock encryption:', error);
       return { success: false, error: 'Invalid password' };
     } finally {
       setIsKeyLoading(false);
@@ -303,14 +364,12 @@ export const useEncryption = (): UseEncryptionReturn => {
   // Encrypt data
   const encrypt = useCallback(async (data: any): Promise<EncryptedData | null> => {
     if (!currentKey) {
-      console.error('No encryption key available');
       return null;
     }
     
     try {
       return await encryptData(data, currentKey);
     } catch (error) {
-      console.error('Failed to encrypt data:', error);
       return null;
     }
   }, [currentKey]);
@@ -318,14 +377,12 @@ export const useEncryption = (): UseEncryptionReturn => {
   // Decrypt data
   const decrypt = useCallback(async (encryptedData: EncryptedData): Promise<any | null> => {
     if (!currentKey) {
-      console.error('No encryption key available');
       return null;
     }
     
     try {
       return await decryptData(encryptedData, currentKey);
     } catch (error) {
-      console.error('Failed to decrypt data:', error);
       return null;
     }
   }, [currentKey]);
@@ -341,7 +398,7 @@ export const useEncryption = (): UseEncryptionReturn => {
   }, []);
 
   // Reset encryption using a backup code
-  const resetWithBackupCode = useCallback(async (code: string, newPassword: string): Promise<{ success: boolean; backupCodes?: string[]; error?: string }> => {
+  const resetWithBackupCode = useCallback(async (code: string): Promise<{ success: boolean; key?: CryptoKey; backupCodes?: string[]; error?: string }> => {
     try {
       setIsKeyLoading(true);
       const normalized = (code || '').toString().replace(/\s+/g, '');
@@ -361,13 +418,8 @@ export const useEncryption = (): UseEncryptionReturn => {
         restoredKey = await validateBackupCodeHash(normalized);
       }
       
-      if (!restoredKey) {
-        return { success: false, error: 'Invalid backup code' };
-      }
-      
       if (restoredKey) {
-        
-        // Use the restored original key directly
+        // Valid backup code found - restore the original key
         setCurrentKey(restoredKey);
         setIsKeySetup(true);
         
@@ -393,39 +445,53 @@ export const useEncryption = (): UseEncryptionReturn => {
         // Cache the restored key for future page reloads
         await cacheCryptoKey(restoredKey);
         
-        return { success: true, backupCodes: newCodes };
+        return { success: true, key: restoredKey, backupCodes: newCodes };
       } else {
-        // Fallback: create new key if original key restoration fails
-        const newEncKey = await generateEncryptionKey(newPassword);
-        storeEncryptionKey(newEncKey);
+        // Invalid backup code - create new encryption key with the entered code included
+        const randomPassword = generateRandomPassword();
+        const encryptionKey = await generateEncryptionKey(randomPassword);
+        
+        // Store key data (salt + version)
+        storeEncryptionKey(encryptionKey);
+        
+        // Create and store a verifier encrypted with the derived key for future password validation
+        try {
+          const verifierPlain = {
+            t: 'financify_key_verifier',
+            ts: Date.now(),
+            n: Math.random(),
+          };
+          const verifierEncrypted = await encryptData(verifierPlain, encryptionKey.key);
+          localStorage.setItem('financify_key_verifier', JSON.stringify(verifierEncrypted));
+        } catch (e) {
+          // Failed to persist verifier
+        }
 
-        const verifierPlain = { t: 'financify_key_verifier', ts: Date.now(), n: Math.random() };
-        const verifierEncrypted = await encryptData(verifierPlain, newEncKey.key);
-        localStorage.setItem('financify_key_verifier', JSON.stringify(verifierEncrypted));
-
-        const newCodes = generateBackupCodes();
+        // Generate 7 new backup codes and include the user-entered code
+        const newCodes = generateBackupCodes(7);
+        newCodes.unshift(normalized); // Add the user-entered code as the first backup code
+        
         storeBackupCodes(newCodes);
         
-        // Store the new key encrypted with new backup codes
-        await storeEncryptedOriginalKey(newEncKey.key, newCodes);
+        // Store the original encryption key encrypted with backup codes
+        await storeEncryptedOriginalKey(encryptionKey.key, newCodes);
         
-        // Store new backup code hashes and encrypted key in Supabase
-        await storeBackupCodeHashes(newCodes, newEncKey.key);
-
-        setCurrentKey(newEncKey.key);
+        // Store backup code hashes and encrypted original key in Supabase for cross-device recovery
+        await storeBackupCodeHashes(newCodes, encryptionKey.key);
+        
+        // Set current key for immediate use
+        setCurrentKey(encryptionKey.key);
         setIsKeySetup(true);
         
-        // Set encryption state to enabled and key in store
-        setEncryptionKey(newEncKey.key);
-        setEncryptionEnabledLocal(true);
+        try { await cacheCryptoKey(encryptionKey.key); } catch {}
+        try { 
+          setEncryptionKey(encryptionKey.key); 
+          setEncryptionEnabledLocal(true); // Persist to localStorage
+        } catch {}
         
-        // Cache the new key for future page reloads
-        await cacheCryptoKey(newEncKey.key);
-        
-        return { success: true, backupCodes: newCodes };
+        return { success: true, key: encryptionKey.key, backupCodes: newCodes };
       }
     } catch (e) {
-      console.error('Failed to reset with backup code:', e);
       return { success: false, error: 'Failed to reset encryption' };
     } finally {
       setIsKeyLoading(false);
@@ -440,6 +506,7 @@ export const useEncryption = (): UseEncryptionReturn => {
     unlockEncryption,
     clearEncryption,
     resetWithBackupCode,
+    initializeAutoEncryption,
     encrypt,
     decrypt,
     getBackupCodes,

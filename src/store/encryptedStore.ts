@@ -53,7 +53,6 @@ export const useEncryptedStore = (): EncryptedStore => {
         version: 1
       };
     } catch (error) {
-      console.error('Failed to encrypt transaction:', error);
       return null;
     }
   };
@@ -76,7 +75,6 @@ export const useEncryptedStore = (): EncryptedStore => {
       const decoded = new TextDecoder().decode(decrypted);
       return JSON.parse(decoded);
     } catch (error) {
-      // console.error('Failed to decrypt transaction:', error);
       return null;
     }
   };
@@ -116,8 +114,6 @@ export const useEncryptedStore = (): EncryptedStore => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
-    console.log('Encrypted store updateEncryptedTransaction called with ID:', id);
-
     const encrypted = await encryptTransaction(transaction, encryptionKey);
     if (!encrypted) throw new Error('Failed to encrypt transaction');
 
@@ -135,11 +131,9 @@ export const useEncryptedStore = (): EncryptedStore => {
       .eq('user_id', user.id);
 
     if (error) {
-      console.error('Encrypted store update error:', error);
       throw error;
     }
     
-    console.log('Encrypted store update successful');
   };
 
   // Load and decrypt transactions
@@ -158,7 +152,6 @@ export const useEncryptedStore = (): EncryptedStore => {
       .order('date', { ascending: false });
 
     if (error) {
-      console.error('❌ Error loading encrypted transactions:', error);
       throw error;
     }
 
@@ -198,7 +191,6 @@ export const useEncryptedStore = (): EncryptedStore => {
           });
         }
       } catch (error) {
-        console.error('Failed to decrypt transaction:', encryptedTx.id, error);
         // Skip this transaction if decryption fails
       }
     }

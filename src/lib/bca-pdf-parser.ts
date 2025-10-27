@@ -48,7 +48,6 @@ function parseAmountToIdr(raw: string): number | null {
     
     return null;
   } catch (error) {
-    console.warn(`Failed to parse amount: "${raw}"`, error);
     return null;
   }
 }
@@ -225,7 +224,6 @@ function toIsoDate(ddmm: string): string {
   // Handle 'PEND' case - set to current date (today)
   if (ddmm.toUpperCase() === 'PEND') {
     const now = new Date();
-    console.log('PEND date detected, using current date:', now.toISOString());
     return now.toISOString();
   }
   
@@ -249,7 +247,6 @@ function toIsoDate(ddmm: string): string {
     return date.toISOString();
   } catch (error) {
     // Fallback to current year if date construction fails
-    console.warn(`Invalid date: ${day}/${month}/${year}, using current year`);
     return new Date(`${currentYear}-${month}-${day}T00:00:00.000Z`).toISOString();
   }
 }
@@ -373,13 +370,12 @@ async function extractTextWithPdfJs(file: File): Promise<string> {
         
         fullText += '\n'; // Page separator
       } catch (pageError) {
-        console.warn(`Error processing page ${i}:`, pageError);
+        // Error processing page
       }
     }
     
   return fullText;
   } catch (error) {
-    console.error('PDF text extraction failed:', error);
     throw new Error('Failed to extract text from PDF');
   }
 }
@@ -422,7 +418,7 @@ async function ocrPdfIfNeeded(file: File): Promise<string> {
       const { data: result } = await worker.recognize(canvas);
       fullText += result.text + "\n";
         } catch (pageError) {
-          console.warn(`Error OCR processing page ${i}:`, pageError);
+          // Error OCR processing page
         }
     }
       
@@ -431,7 +427,6 @@ async function ocrPdfIfNeeded(file: File): Promise<string> {
     await worker.terminate();
     }
   } catch (error) {
-    console.error('OCR processing failed:', error);
     throw new Error('Failed to perform OCR on PDF');
   }
 }
@@ -446,7 +441,6 @@ export async function parseBcaStatementPdf(file: File): Promise<ImportedTransact
     const meaningfulText = text.replace(/\s+/g, ' ').trim();
     
     if (!meaningfulText || meaningfulText.length < 100) {
-      console.warn('Insufficient text extracted, falling back to OCR');
     text = await ocrPdfIfNeeded(file);
   }
     
@@ -454,12 +448,11 @@ export async function parseBcaStatementPdf(file: File): Promise<ImportedTransact
     const transactions = parseBcaStatementText(text);
     
     if (transactions.length === 0) {
-      console.warn('No transactions found in parsed text. Text sample:', text.substring(0, 500));
+      // No transactions found in parsed text
     }
     
     return transactions;
   } catch (error) {
-    console.error('BCA statement parsing failed:', error);
     throw new Error(`Failed to parse BCA statement: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

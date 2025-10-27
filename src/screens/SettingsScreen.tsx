@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { EncryptionStatus } from "@/components/EncryptionStatus";
-import { EncryptionSetup } from "@/components/EncryptionSetup";
 import { useEncryption } from "@/hooks/useEncryption";
 
 export const SettingsScreen = () => {
@@ -34,7 +33,7 @@ export const SettingsScreen = () => {
     try {
       await signOut();
     } catch (error) {
-      console.error('Error signing out:', error);
+      // Error signing out
     }
   };
 
@@ -151,10 +150,8 @@ export const SettingsScreen = () => {
                     <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                     <p className="text-sm text-muted-foreground">Loading encryption status...</p>
                   </div>
-                ) : isKeySetup ? (
-                  <EncryptionStatus />
                 ) : (
-                  <EncryptionSetup />
+                  <EncryptionStatus />
                 )}
               </div>
             </div>
@@ -226,7 +223,6 @@ export const SettingsScreen = () => {
                   toast({ title: 'Profile updated' });
                   setIsProfileOpen(false);
                 } catch (e) {
-                  console.error(e);
                   toast({ title: 'Failed to update profile', variant: 'destructive' });
                 } finally {
                   setIsSavingProfile(false);
