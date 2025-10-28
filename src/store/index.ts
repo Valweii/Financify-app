@@ -787,6 +787,10 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
 
   signOut: async () => {
     await supabase.auth.signOut();
+    // Clear 2FA verification state from sessionStorage
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('twoFactorVerified');
+    }
     set({
       user: null,
       session: null,

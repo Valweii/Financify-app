@@ -9,7 +9,7 @@ import { FloatingActionButton } from "./FloatingActionButton";
 import { TransactionInputDialog } from "./TransactionInputDialog";
 import { EncryptionRecovery } from "./EncryptionRecovery";
 import { MandatoryTwoFactorSetup } from "./MandatoryTwoFactorSetup";
-import { TwoFactorVerification } from "./TwoFactorVerification";
+import { TwoFactorVerificationScreen } from "./TwoFactorVerificationScreen";
 import { useFinancifyStore } from "@/store";
 import { supabase } from "@/integrations/supabase/client";
 import { useEncryption } from "@/hooks/useEncryption";
@@ -31,7 +31,14 @@ export const FinancifyApp = () => {
   const [showBackupCodes, setShowBackupCodes] = useState(false);
   const [showMandatoryTwoFactorSetup, setShowMandatoryTwoFactorSetup] = useState(false);
   const [isTwoFactorRequired, setIsTwoFactorRequired] = useState(false);
-  const [isTwoFactorVerified, setIsTwoFactorVerified] = useState(false);
+  const [isTwoFactorVerified, setIsTwoFactorVerified] = useState(() => {
+    // Initialize from sessionStorage to persist across page reloads
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem('twoFactorVerified');
+      return stored === 'true';
+    }
+    return false;
+  });
   const contentRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -61,6 +68,8 @@ export const FinancifyApp = () => {
         if (!session?.user) {
           setIsTwoFactorVerified(false);
           setIsTwoFactorRequired(false);
+          // Clear verification state from sessionStorage
+          sessionStorage.removeItem('twoFactorVerified');
         }
         
         // Load user data when authenticated
@@ -190,11 +199,15 @@ export const FinancifyApp = () => {
     // After setup is complete, user needs to verify
     setIsTwoFactorRequired(true);
     setIsTwoFactorVerified(false);
+    // Clear verification state from sessionStorage since this is a new setup
+    sessionStorage.removeItem('twoFactorVerified');
   };
 
   const handleTwoFactorVerified = () => {
     setIsTwoFactorRequired(false);
     setIsTwoFactorVerified(true);
+    // Persist verification state in sessionStorage
+    sessionStorage.setItem('twoFactorVerified', 'true');
     toast({
       title: "Welcome back!",
       description: "Two-factor authentication verified successfully.",
@@ -207,6 +220,8 @@ export const FinancifyApp = () => {
     if (!isTwoFactorVerified) {
       setIsTwoFactorRequired(false);
       setIsTwoFactorVerified(false);
+      // Clear verification state from sessionStorage
+      sessionStorage.removeItem('twoFactorVerified');
       // Sign out the user since they didn't complete 2FA
       await supabase.auth.signOut();
       toast({
@@ -329,20 +344,10 @@ export const FinancifyApp = () => {
   // Show 2FA verification screen if required and not yet verified
   if (isTwoFactorRequired && !isTwoFactorVerified) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="max-w-md w-full p-4">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-primary mb-2">Financify</h1>
-            <p className="text-muted-foreground">Two-factor authentication required</p>
-          </div>
-          <TwoFactorVerification
-            isOpen={true}
-            onClose={handleTwoFactorCancel}
-            onSuccess={handleTwoFactorVerified}
-            onBackupCode={() => {}}
-          />
-        </div>
-      </div>
+      <TwoFactorVerificationScreen
+        onSuccess={handleTwoFactorVerified}
+        onCancel={handleTwoFactorCancel}
+      />
     );
   }
 
