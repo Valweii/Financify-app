@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useFinancifyStore } from '@/store';
-import { Shield, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Shield, ArrowLeft, Key } from 'lucide-react';
 
 interface TwoFactorVerificationScreenProps {
   onSuccess: () => void;
@@ -18,17 +17,60 @@ export const TwoFactorVerificationScreen: React.FC<TwoFactorVerificationScreenPr
   const { verifyTwoFactorToken, useBackupCode } = useFinancifyStore();
   const { toast } = useToast();
   
-  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
   const [backupCode, setBackupCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isUsingBackup, setIsUsingBackup] = useState(false);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Focus first input on mount
+  useEffect(() => {
+    if (!isUsingBackup && inputRefs.current[0]) {
+      inputRefs.current[0].focus();
+    }
+  }, [isUsingBackup]);
+
+  const handleDigitChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return; // Only allow digits
+    
+    const newCode = [...verificationCode];
+    newCode[index] = value;
+    setVerificationCode(newCode);
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !verificationCode[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    const newCode = ['', '', '', '', '', ''];
+    for (let i = 0; i < pastedData.length; i++) {
+      newCode[i] = pastedData[i];
+    }
+    setVerificationCode(newCode);
+    
+    // Focus the next empty input or the last one
+    const nextEmptyIndex = newCode.findIndex(digit => digit === '');
+    const focusIndex = nextEmptyIndex === -1 ? 5 : nextEmptyIndex;
+    inputRefs.current[focusIndex]?.focus();
+  };
 
   const handleVerifyCode = async () => {
-    if (!verificationCode || verificationCode.length !== 6) return;
+    const code = verificationCode.join('');
+    if (code.length !== 6) return;
     
     setIsVerifying(true);
     try {
-      const isValid = await verifyTwoFactorToken(verificationCode);
+      const isValid = await verifyTwoFactorToken(code);
       
       if (isValid) {
         toast({
@@ -42,7 +84,8 @@ export const TwoFactorVerificationScreen: React.FC<TwoFactorVerificationScreenPr
           description: "The verification code is incorrect. Please try again.",
           variant: "destructive",
         });
-        setVerificationCode('');
+        setVerificationCode(['', '', '', '', '', '']);
+        inputRefs.current[0]?.focus();
       }
     } catch (error) {
       toast({
@@ -94,139 +137,151 @@ export const TwoFactorVerificationScreen: React.FC<TwoFactorVerificationScreenPr
           handleBackupCode();
         }
       } else {
-        if (verificationCode.length === 6) {
+        const code = verificationCode.join('');
+        if (code.length === 6) {
           handleVerifyCode();
         }
       }
     }
   };
 
+  const isCodeComplete = verificationCode.every(digit => digit !== '');
+  const isBackupCodeComplete = backupCode.length === 8;
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         {/* App Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center mb-4">
-            <Shield className="w-12 h-12 text-primary" />
+        <div className="text-center mb-12">
+          <h1 className="text-3xl font-bold text-primary mb-6">Financify</h1>
+          <div className="flex items-center justify-center mb-6">
+            <div className="w-16 h-16 rounded-full border-2 border-primary flex items-center justify-center">
+              <Shield className="w-8 h-8 text-primary" />
+            </div>
           </div>
-          <h1 className="text-3xl font-bold text-primary mb-2">Financify</h1>
-          <p className="text-muted-foreground">Two-Factor Authentication</p>
+          <h2 className="text-2xl font-bold text-foreground mb-2">
+            {isUsingBackup ? 'Backup Code' : 'Verification Code'}
+          </h2>
+          <p className="text-muted-foreground">
+            {isUsingBackup 
+              ? 'Enter one of your backup codes. Each code can only be used once.'
+              : 'Enter the 6-digit code from your authenticator app.'
+            }
+          </p>
         </div>
 
-        {/* Verification Card */}
-        <Card className="financial-card p-6">
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">
-                {isUsingBackup ? 'Enter Backup Code' : 'Verify Your Identity'}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {isUsingBackup 
-                  ? 'Enter one of your backup codes. Each code can only be used once.'
-                  : 'Enter the 6-digit code from your authenticator app to complete sign in.'
-                }
-              </p>
-            </div>
-
-            {!isUsingBackup ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium block mb-2">Verification Code</label>
+        {/* Verification Form */}
+        <div className="space-y-8">
+          {!isUsingBackup ? (
+            <>
+              {/* 6-Digit Code Input */}
+              <div className="flex justify-center gap-3">
+                {verificationCode.map((digit, index) => (
                   <Input
-                    value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    onKeyPress={handleKeyPress}
-                    placeholder="123456"
-                    className="text-center text-2xl font-mono tracking-widest h-14"
-                    maxLength={6}
-                    autoFocus
+                    key={index}
+                    ref={(el) => (inputRefs.current[index] = el)}
+                    value={digit}
+                    onChange={(e) => handleDigitChange(index, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    onPaste={handlePaste}
+                    className="w-12 h-12 text-center text-xl font-semibold border-input rounded-lg focus:border-primary focus:ring-primary"
+                    maxLength={1}
                     disabled={isVerifying}
                   />
-                </div>
-                
-                <Button
-                  onClick={handleVerifyCode}
-                  disabled={isVerifying || verificationCode.length !== 6}
-                  className="w-full btn-primary h-12"
-                >
-                  {isVerifying ? 'Verifying...' : 'Verify Code'}
-                </Button>
-
-                <div className="text-center">
-                  <Button
-                    variant="link"
-                    onClick={() => setIsUsingBackup(true)}
-                    className="text-sm"
-                    disabled={isVerifying}
-                  >
-                    Use backup code instead
-                  </Button>
-                </div>
+                ))}
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium block mb-2">Backup Code</label>
-                  <Input
-                    value={backupCode}
-                    onChange={(e) => setBackupCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))}
-                    onKeyPress={handleKeyPress}
-                    placeholder="ABC12345"
-                    className="text-center text-2xl font-mono tracking-widest h-14"
-                    maxLength={8}
-                    autoFocus
-                    disabled={isVerifying}
-                  />
-                </div>
-                
-                <Button
-                  onClick={handleBackupCode}
-                  disabled={isVerifying || backupCode.length !== 8}
-                  className="w-full btn-primary h-12"
-                >
-                  {isVerifying ? 'Verifying...' : 'Verify Backup Code'}
-                </Button>
 
-                <div className="text-center">
-                  <Button
-                    variant="link"
-                    onClick={() => setIsUsingBackup(false)}
-                    className="text-sm"
-                    disabled={isVerifying}
-                  >
-                    Use authenticator app instead
-                  </Button>
-                </div>
+              {/* Verify Button */}
+              <Button
+                onClick={handleVerifyCode}
+                disabled={isVerifying || !isCodeComplete}
+                className="w-full h-12 btn-primary disabled:opacity-50"
+              >
+                {isVerifying ? 'Verifying...' : 'Verify'}
+              </Button>
+            </>
+          ) : (
+            <>
+              {/* Backup Code Input */}
+              <div>
+                <Input
+                  value={backupCode}
+                  onChange={(e) => setBackupCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))}
+                  onKeyPress={handleKeyPress}
+                  placeholder="ABC12345"
+                  className="w-full h-12 text-center text-lg font-mono tracking-widest border-input rounded-lg focus:border-primary focus:ring-primary"
+                  maxLength={8}
+                  autoFocus
+                  disabled={isVerifying}
+                />
               </div>
-            )}
-            
-            <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-blue-800 dark:text-blue-200">
-                  <p className="font-medium mb-1">Security Notice</p>
-                  <p>If you're having trouble accessing your authenticator app, you can use a backup code. These codes were provided during setup.</p>
-                </div>
-              </div>
-            </div>
 
+              {/* Verify Button */}
+              <Button
+                onClick={handleBackupCode}
+                disabled={isVerifying || !isBackupCodeComplete}
+                className="w-full h-12 btn-primary disabled:opacity-50"
+              >
+                {isVerifying ? 'Verifying...' : 'Verify'}
+              </Button>
+            </>
+          )}
+
+          {/* Toggle between verification methods */}
+          <div className="text-center">
             <Button
-              variant="outline"
-              onClick={onCancel}
-              className="w-full"
+              variant="link"
+              onClick={() => {
+                setIsUsingBackup(!isUsingBackup);
+                setVerificationCode(['', '', '', '', '', '']);
+                setBackupCode('');
+                setTimeout(() => {
+                  if (!isUsingBackup) {
+                    inputRefs.current[0]?.focus();
+                  }
+                }, 100);
+              }}
+              className="text-primary hover:text-primary-light p-0 h-auto"
               disabled={isVerifying}
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Cancel and Sign Out
+              {isUsingBackup ? 'Use authenticator app instead' : 'Use backup code instead'}
             </Button>
           </div>
-        </Card>
 
-        {/* Info Note */}
-        <div className="mt-6 text-center">
-          <p className="text-xs text-muted-foreground">
-            Two-factor authentication helps keep your financial data secure
-          </p>
+          {/* Resend Code / Help */}
+          <div className="text-center text-muted-foreground">
+            <span>Having trouble? </span>
+            <button
+              onClick={() => {
+                if (isUsingBackup) {
+                  toast({
+                    title: "Backup Code Help",
+                    description: "Make sure you're using a valid backup code that hasn't been used before.",
+                  });
+                } else {
+                  toast({
+                    title: "Verification Code Help",
+                    description: "Check your authenticator app for the current 6-digit code.",
+                  });
+                }
+              }}
+              className="text-primary hover:text-primary-light underline"
+              disabled={isVerifying}
+            >
+              Get help
+            </button>
+          </div>
+
+          {/* Cancel Button */}
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            className="w-full h-12 border-border text-muted-foreground hover:bg-muted"
+            disabled={isVerifying}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Cancel
+          </Button>
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, Pencil, ImagePlus, History, Receipt, ArrowLeft, ArrowRight } from "lucide-react";
+import { Plus, Trash2, Pencil, ImagePlus, History, Receipt, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MoneyDisplay } from "@/components/MoneyDisplay";
 import { useFinancifyStore, type SplitBillHistory } from "@/store";
@@ -50,6 +50,7 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
   const [progressAnimation, setProgressAnimation] = useState<'forward' | 'backward' | null>(null);
   const [progressFrom, setProgressFrom] = useState<number>(0);
   const [progressTo, setProgressTo] = useState<number>(0);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   // Calculate progress percentage based on step
   const getProgressPercentage = (step: number) => {
@@ -1172,7 +1173,10 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
             {/* Complete button */}
           <Button 
               className="w-full btn-primary"
+              disabled={isProcessing}
                 onClick={async () => {
+                  setIsProcessing(true);
+                  let hasError = false;
                   try {
                     const today = new Date();
                     const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
@@ -1216,18 +1220,32 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
                       toast({ title: 'Split bill saved', description: 'Split bill history has been recorded.' });
                     }
                   } catch (error) {
+                    hasError = true;
                     toast({ title: 'Error', description: 'Failed to save split bill. Please try again.' });
                   } finally {
-                  if (onNavigate) {
-                    onNavigate();
-                  } else {
-                    handleStepChange(-1);
-                  }
+                    setIsProcessing(false);
+                    // Only navigate if there was no error
+                    if (!hasError) {
+                      if (onNavigate) {
+                        onNavigate();
+                      } else {
+                        handleStepChange(-1);
+                      }
+                    }
                   }
                 }}
               >
-              Complete Split Bill
-              <ArrowRight className="w-4 h-4 ml-2" />
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  Complete Split Bill
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </>
+              )}
               </Button>
           </div>
         </div>
