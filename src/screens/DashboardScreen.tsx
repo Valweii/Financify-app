@@ -131,7 +131,7 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
     <div className="space-y-6 pb-20">
       {/* Header */}
       <div className="space-y-2">
-        <h1 className="text-responsive-2xl font-bold text-foreground">
+        <h1 className="text-2xl font-bold text-foreground">
           Hello, {profile?.full_name || user?.email?.split('@')[0] || 'User'}! 👋
         </h1>
         <p className="text-muted-foreground">Welcome to your financial dashboard</p>
@@ -188,27 +188,30 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <PieChart className="w-5 h-5 text-primary" />
-            <Select
+              <Select
               value={`${chartMonth.getFullYear()}-${chartMonth.getMonth()}`}
               onValueChange={(val) => {
                 const [y, m] = val.split('-').map(Number);
                 setChartMonth(new Date(y, m, 1));
               }}
             >
-              <SelectTrigger className="w-56">
-                <SelectValue placeholder={monthYearLabel} />
+              <SelectTrigger className="w-52">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent className="max-h-72">
-                {Array.from({ length: 120 }).map((_, idx) => {
-                  const d = new Date();
-                  d.setMonth(d.getMonth() - idx);
+                {(() => {
+                  const start = new Date(chartMonth.getFullYear(), chartMonth.getMonth(), 1);
+                  return Array.from({ length: 120 }).map((_, idx) => {
+                    const d = new Date(start);
+                    d.setMonth(start.getMonth() - idx);
                   const label = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
                   return (
                     <SelectItem key={`${d.getFullYear()}-${d.getMonth()}`} value={`${d.getFullYear()}-${d.getMonth()}`}>
                       {label}
                     </SelectItem>
                   );
-                })}
+                  });
+                })()}
               </SelectContent>
             </Select>
           </div>

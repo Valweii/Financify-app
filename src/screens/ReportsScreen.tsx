@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
 import { TransactionInputDialog } from "@/components/TransactionInputDialog";
+import { CategoryDetailSheet } from "./reports/CategoryDetailSheet";
 
 
 export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
@@ -894,142 +895,26 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
         </TabsContent>
       </Tabs>
 
-      {/* Category Transactions Modal */}
-      {selectedCategory && (
-        <Dialog 
-          open={isCategoryModalOpen} 
-          onOpenChange={(open) => {
-            setIsCategoryModalOpen(open);
-            if (!open) {
-              // Reset sorting when modal closes
-              setCategorySortBy('date');
-              setCategorySortDir('desc');
-            }
+      {/* Category Transactions Bottom Sheet (draggable) */}
+      {selectedCategory && isCategoryModalOpen && (
+        <CategoryDetailSheet
+          selectedCategory={selectedCategory}
+          monthlyDate={monthlyDate}
+          monthlyTransactions={monthlyTransactions as any}
+          sortBy={categorySortBy}
+          sortDir={categorySortDir}
+          setSortBy={setCategorySortBy}
+          setSortDir={setCategorySortDir}
+          onClose={() => {
+            setIsCategoryModalOpen(false);
+            setCategorySortBy('date');
+            setCategorySortDir('desc');
           }}
-        >
-          <DialogContent 
-            className="fixed bottom-0 left-0 right-0 top-[20vh] w-full max-w-full rounded-t-3xl border-0 p-0 translate-x-0 translate-y-0 overflow-hidden"
-            style={{
-              animation: isCategoryModalOpen 
-                ? 'slideUp 0.3s ease-out forwards' 
-                : 'slideDown 0.3s ease-in forwards'
-            }}
-          >
-            <div className="flex flex-col h-full w-full bg-background rounded-t-3xl overflow-hidden">
-              {/* Header */}
-              <div className="sticky top-0 bg-background border-b border-border px-4 py-4 rounded-t-3xl z-10 flex-shrink-0">
-                <div className="flex items-center justify-between gap-3">
-                  {/* Left side - Category info */}
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-xl font-bold truncate">{selectedCategory}</h2>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {monthlyTransactions.filter(t => t.category === selectedCategory).length} transaction
-                      {monthlyTransactions.filter(t => t.category === selectedCategory).length !== 1 ? 's' : ''} • {monthlyDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })}
-                    </p>
-                  </div>
-                  
-                  {/* Right side - Sorting Controls */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {/* Pill Toggle for Sort Type */}
-                    <div className="flex items-center bg-secondary rounded-full p-1.5">
-                      <button
-                        onClick={() => setCategorySortBy('date')}
-                        className={`px-3 py-1 rounded-full text-sm font-medium transition-all ${
-                          categorySortBy === 'date' 
-                            ? 'bg-primary text-primary-foreground shadow-sm' 
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        Date
-                      </button>
-                      <button
-                        onClick={() => setCategorySortBy('amount')}
-                        className={`px-3 py-1 rounded-full text-sm font-medium transition-all ${
-                          categorySortBy === 'amount' 
-                            ? 'bg-primary text-primary-foreground shadow-sm' 
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        Amount
-                      </button>
-                         </div>
-                    
-                    {/* Circular Sort Direction Button */}
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="rounded-full h-8 w-8"
-                      onClick={() => setCategorySortDir(prev => prev === 'asc' ? 'desc' : 'asc')}
-                    >
-                      <ArrowUpDown className={`w-4 h-4 transition-transform ${categorySortDir === 'asc' ? 'rotate-180' : ''}`} />
-                    </Button>
-                       </div>
-                     </div>
-                     </div>
-
-              {/* Transactions List */}
-              <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4">
-                <div className="space-y-2 pb-20 w-full">
-                  {monthlyTransactions
-                    .filter(t => t.category === selectedCategory)
-                    .sort((a, b) => {
-                      const dir = categorySortDir === 'asc' ? 1 : -1;
-                      if (categorySortBy === 'date') {
-                        const da = new Date(a.date).getTime();
-                        const db = new Date(b.date).getTime();
-                        return (da - db) * dir;
-                      } else {
-                        const aa = Math.abs(a.amount_cents);
-                        const bb = Math.abs(b.amount_cents);
-                        return (aa - bb) * dir;
-                      }
-                    })
-                    .map((transaction) => {
-                      // Format amount without currency
-                      const formatAmountNoCurrency = (amount: number) => {
-                        return new Intl.NumberFormat('id-ID', {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 0,
-                        }).format(Math.abs(amount));
-                      };
-                      
-                      const getAmountColor = () => {
-                        return transaction.type === 'credit' ? "text-income" : "text-expense";
-                      };
-                      
-                      // Truncate description to max 35 characters
-                      const truncateDescription = (text: string, maxLength: number = 35) => {
-                        if (text.length <= maxLength) return text;
-                        return text.substring(0, maxLength) + '...';
-                      };
-                      
-                      return (
-                        <Card 
-                          key={transaction.id} 
-                          className="financial-card p-4 overflow-hidden cursor-pointer hover:bg-accent/50 transition-colors"
-                          onClick={() => {
-                            setSelectedTransactionDetail(transaction);
-                            setIsTransactionDetailOpen(true);
-                          }}
-                        >
-                          <div className="flex items-center justify-between gap-2 mb-2">
-                            <p className="font-medium truncate flex-1 min-w-0">{truncateDescription(transaction.description)}</p>
-                            <p className={`font-bold whitespace-nowrap flex-shrink-0 ${getAmountColor()}`}>
-                              {formatAmountNoCurrency(transaction.amount_cents)}
-                            </p>
-                   </div>
-                          <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-                            <p className="truncate flex-1 min-w-0">{transaction.source}</p>
-                            <p className="whitespace-nowrap flex-shrink-0">{new Date(transaction.date).toLocaleDateString('en-US')}</p>
-                   </div>
-                 </Card>
-                      );
-                    })}
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+          onOpenTransaction={(transaction) => {
+            setSelectedTransactionDetail(transaction);
+            setIsTransactionDetailOpen(true);
+          }}
+        />
       )}
 
       {/* Transaction Detail Dialog */}
