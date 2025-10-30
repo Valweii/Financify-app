@@ -232,8 +232,24 @@ export const SplitBillDetailModal = ({
           />
         </div>
 
-        {/* Header */}
-        <div className="sticky top-0 bg-background/95 backdrop-blur-sm border-b border-border z-10 px-6 py-4">
+        {/* Header - Draggable */}
+        <div 
+          className="sticky top-0 bg-background/95 backdrop-blur-sm border-b border-border z-10 px-6 py-4 cursor-grab active:cursor-grabbing touch-none"
+          onMouseDown={(e) => {
+            // Don't start drag if clicking on interactive elements
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'BUTTON' || target.closest('button')) return;
+            e.preventDefault();
+            handleDragStart(e.clientY);
+          }}
+          onTouchStart={(e) => {
+            // Don't start drag if clicking on interactive elements
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'BUTTON' || target.closest('button')) return;
+            e.preventDefault();
+            handleDragStart(e.touches[0].clientY);
+          }}
+        >
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold">Split Bill Details</h2>

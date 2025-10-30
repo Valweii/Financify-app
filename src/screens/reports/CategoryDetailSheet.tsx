@@ -197,8 +197,24 @@ export const CategoryDetailSheet = ({
           <div className="w-12 h-1.5 bg-muted-foreground/30 rounded-full transition-all duration-200" />
         </div>
 
-        {/* Header */}
-        <div className="sticky top-0 bg-background border-b border-border px-4 py-4 rounded-t-3xl z-10 flex-shrink-0">
+        {/* Header - Draggable */}
+        <div 
+          className="sticky top-0 bg-background border-b border-border px-4 py-4 rounded-t-3xl z-10 flex-shrink-0 cursor-grab active:cursor-grabbing touch-none"
+          onMouseDown={(e) => {
+            // Don't start drag if clicking on interactive elements
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'BUTTON' || target.closest('button')) return;
+            e.preventDefault();
+            handleDragStart(e.clientY);
+          }}
+          onTouchStart={(e) => {
+            // Don't start drag if clicking on interactive elements
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'BUTTON' || target.closest('button')) return;
+            e.preventDefault();
+            handleDragStart(e.touches[0].clientY);
+          }}
+        >
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
               <h2 className="text-xl font-bold truncate">{selectedCategory}</h2>
