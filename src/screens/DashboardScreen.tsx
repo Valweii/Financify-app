@@ -200,7 +200,9 @@ export const DashboardScreen = ({ onNavigate }: DashboardScreenProps) => {
               </SelectTrigger>
               <SelectContent className="max-h-72">
                 {(() => {
-                  const start = new Date(chartMonth.getFullYear(), chartMonth.getMonth(), 1);
+                  // Always generate from current month backwards so future months remain available to select
+                  const now = new Date();
+                  const start = new Date(now.getFullYear(), now.getMonth(), 1);
                   return Array.from({ length: 120 }).map((_, idx) => {
                     const d = new Date(start);
                     d.setMonth(start.getMonth() - idx);

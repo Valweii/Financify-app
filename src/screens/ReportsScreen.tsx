@@ -541,19 +541,24 @@ export const ReportsScreen = ({ isActive }: { isActive?: boolean }) => {
                   }}
                 >
                   <SelectTrigger className="w-56">
-                    <SelectValue placeholder={monthYearLabel} />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="max-h-72">
-                    {Array.from({ length: 120 }).map((_, idx) => {
-                      const d = new Date();
-                      d.setMonth(d.getMonth() - idx);
-                      const label = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-                      return (
-                        <SelectItem key={`${d.getFullYear()}-${d.getMonth()}`} value={`${d.getFullYear()}-${d.getMonth()}`}>
-                          {label}
-                        </SelectItem>
-                      );
-                    })}
+                    {(() => {
+                      // Always generate from current month backwards so you can navigate back to present
+                      const now = new Date();
+                      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                      return Array.from({ length: 120 }).map((_, idx) => {
+                        const d = new Date(start);
+                        d.setMonth(start.getMonth() - idx);
+                        const label = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+                        return (
+                          <SelectItem key={`${d.getFullYear()}-${d.getMonth()}`} value={`${d.getFullYear()}-${d.getMonth()}`}>
+                            {label}
+                          </SelectItem>
+                        );
+                      });
+                    })()}
                   </SelectContent>
                 </Select>
                 <Button variant="outline" size="icon" onClick={() => changeMonth(1)} aria-label="Next month">
