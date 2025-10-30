@@ -8,8 +8,6 @@ import { AuthScreen } from "./AuthScreen";
 import { FloatingActionButton } from "./FloatingActionButton";
 import { TransactionInputDialog } from "./TransactionInputDialog";
 import { EncryptionRecovery } from "./EncryptionRecovery";
-import { MandatoryTwoFactorSetup } from "./MandatoryTwoFactorSetup";
-import { TwoFactorVerificationScreen } from "./TwoFactorVerificationScreen";
 import { useFinancifyStore } from "@/store";
 import { supabase } from "@/integrations/supabase/client";
 import { useEncryption } from "@/hooks/useEncryption";
@@ -18,6 +16,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Key, Shield, AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export const FinancifyApp = () => {
   const [activeTab, setActiveTab] = useState<NavigationTab>("dashboard");
@@ -29,16 +28,7 @@ export const FinancifyApp = () => {
   const [isInitializingEncryption, setIsInitializingEncryption] = useState(false);
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
   const [showBackupCodes, setShowBackupCodes] = useState(false);
-  const [showMandatoryTwoFactorSetup, setShowMandatoryTwoFactorSetup] = useState(false);
-  const [isTwoFactorRequired, setIsTwoFactorRequired] = useState(false);
-  const [isTwoFactorVerified, setIsTwoFactorVerified] = useState(() => {
-    // Initialize from sessionStorage to persist across page reloads
-    if (typeof window !== 'undefined') {
-      const stored = sessionStorage.getItem('twoFactorVerified');
-      return stored === 'true';
-    }
-    return false;
-  });
+  const [isFabOpen, setIsFabOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -50,10 +40,7 @@ export const FinancifyApp = () => {
     loadTransactions, 
     loadProfile,
     encryptionKey,
-    setEncryptionKey,
-    twoFactorSetupRequired,
-    checkTwoFactorSetup,
-    loadTwoFactorSettings
+    setEncryptionKey
   } = useFinancifyStore();
   const { isKeySetup, isKeyLoading, initializeAutoEncryption } = useEncryption();
 
@@ -63,14 +50,6 @@ export const FinancifyApp = () => {
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        
-        // Reset 2FA verification state when user signs out
-        if (!session?.user) {
-          setIsTwoFactorVerified(false);
-          setIsTwoFactorRequired(false);
-          // Clear verification state from sessionStorage
-          sessionStorage.removeItem('twoFactorVerified');
-        }
         
         // Load user data when authenticated
         if (session?.user) {
@@ -160,77 +139,6 @@ export const FinancifyApp = () => {
 
     handleEncryptionInitialization();
   }, [isAuthenticated, isKeyLoading, encryptionKey, isKeySetup, initializeAutoEncryption, setEncryptionKey, loadTransactions, toast]);
-
-  // Check for mandatory 2FA setup and verification
-  useEffect(() => {
-    const checkMandatoryTwoFactor = async () => {
-      if (!isAuthenticated || !user) return;
-      
-      // Don't check again if already verified in this session
-      if (isTwoFactorVerified) return;
-      
-      try {
-        const isTwoFactorSetup = await checkTwoFactorSetup();
-        if (!isTwoFactorSetup) {
-          // User needs to set up 2FA
-          setShowMandatoryTwoFactorSetup(true);
-          setIsTwoFactorVerified(false);
-        } else {
-          // User has 2FA set up, load their settings and require verification
-          await loadTwoFactorSettings();
-          // Only set required if not already verified
-          if (!isTwoFactorVerified) {
-            setIsTwoFactorRequired(true);
-            setIsTwoFactorVerified(false);
-          }
-        }
-      } catch (error) {
-        // Silently handle errors (e.g., if table doesn't exist yet)
-      }
-    };
-
-    checkMandatoryTwoFactor();
-  }, [isAuthenticated, user, checkTwoFactorSetup, loadTwoFactorSettings, isTwoFactorVerified]);
-
-  const handleMandatoryTwoFactorComplete = async () => {
-    setShowMandatoryTwoFactorSetup(false);
-    // Load the 2FA settings that were just saved
-    await loadTwoFactorSettings();
-    // After setup is complete, user needs to verify
-    setIsTwoFactorRequired(true);
-    setIsTwoFactorVerified(false);
-    // Clear verification state from sessionStorage since this is a new setup
-    sessionStorage.removeItem('twoFactorVerified');
-  };
-
-  const handleTwoFactorVerified = () => {
-    setIsTwoFactorRequired(false);
-    setIsTwoFactorVerified(true);
-    // Persist verification state in sessionStorage
-    sessionStorage.setItem('twoFactorVerified', 'true');
-    toast({
-      title: "Welcome back!",
-      description: "Two-factor authentication verified successfully.",
-    });
-  };
-
-  const handleTwoFactorCancel = async () => {
-    // Only sign out if verification was not successful
-    // This prevents signing out after successful verification when the dialog closes
-    if (!isTwoFactorVerified) {
-      setIsTwoFactorRequired(false);
-      setIsTwoFactorVerified(false);
-      // Clear verification state from sessionStorage
-      sessionStorage.removeItem('twoFactorVerified');
-      // Sign out the user since they didn't complete 2FA
-      await supabase.auth.signOut();
-      toast({
-        title: "Sign in cancelled",
-        description: "Two-factor authentication is required to access the app.",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleEncryptionRecoverySuccess = async () => {
     setShowEncryptionRecovery(false);
@@ -339,16 +247,6 @@ export const FinancifyApp = () => {
 
   if (!isAuthenticated) {
     return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
-  }
-
-  // Show 2FA verification screen if required and not yet verified
-  if (isTwoFactorRequired && !isTwoFactorVerified) {
-    return (
-      <TwoFactorVerificationScreen
-        onSuccess={handleTwoFactorVerified}
-        onCancel={handleTwoFactorCancel}
-      />
-    );
   }
 
   // Show loading screen during encryption initialization
@@ -495,8 +393,18 @@ export const FinancifyApp = () => {
           </div>
         </main>
 
+        {/* Darkened overlay when FAB is open */}
+        <div 
+          className={cn(
+            "fixed inset-0 bg-black/50 transition-opacity duration-300 z-40",
+            isFabOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+          )}
+          onClick={() => setIsFabOpen(false)}
+        />
+
         <FloatingActionButton 
           onInputTransaction={handleInputTransaction}
+          onOpenChange={setIsFabOpen}
         />
 
         <Navigation activeTab={activeTab} onTabChange={handleTabChange} />
@@ -511,11 +419,6 @@ export const FinancifyApp = () => {
         isOpen={showEncryptionRecovery}
         onClose={() => setShowEncryptionRecovery(false)}
         onSuccess={handleEncryptionRecoverySuccess}
-      />
-
-      <MandatoryTwoFactorSetup
-        isOpen={showMandatoryTwoFactorSetup}
-        onComplete={handleMandatoryTwoFactorComplete}
       />
 
     </div>

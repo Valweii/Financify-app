@@ -72,7 +72,6 @@ export const AuthScreen = ({ onAuthSuccess }: AuthScreenProps) => {
         if (error) throw error;
         
         // Auth state change will be handled by FinancifyApp
-        // 2FA verification will also be handled there
         toast({
           title: "Signing in...",
           description: "Please wait while we verify your account.",

@@ -7,15 +7,18 @@ import { useNavigate } from "react-router-dom";
 
 interface FloatingActionButtonProps {
   onInputTransaction: () => void;
+  onOpenChange?: (isOpen: boolean) => void;
 }
 
-export const FloatingActionButton = ({ onInputTransaction }: FloatingActionButtonProps) => {
+export const FloatingActionButton = ({ onInputTransaction, onOpenChange }: FloatingActionButtonProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const fabRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   const handleToggle = () => {
-    setIsOpen(!isOpen);
+    const newState = !isOpen;
+    setIsOpen(newState);
+    onOpenChange?.(newState);
   };
 
   // Handle click outside to close FAB
@@ -23,6 +26,7 @@ export const FloatingActionButton = ({ onInputTransaction }: FloatingActionButto
     const handleClickOutside = (event: MouseEvent) => {
       if (fabRef.current && !fabRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        onOpenChange?.(false);
       }
     };
 
@@ -33,20 +37,23 @@ export const FloatingActionButton = ({ onInputTransaction }: FloatingActionButto
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen]);
+  }, [isOpen, onOpenChange]);
 
   const handleImportPDF = () => {
     setIsOpen(false);
+    onOpenChange?.(false);
     navigate('/import-pdf');
   };
 
   const handleSplitBill = () => {
     setIsOpen(false);
+    onOpenChange?.(false);
     navigate('/split-bill');
   };
 
   const handleInputTransaction = () => {
     setIsOpen(false);
+    onOpenChange?.(false);
     onInputTransaction();
   };
 

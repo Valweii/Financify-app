@@ -157,7 +157,6 @@ All existing profiles remain intact. The policies only control **access permissi
 Your other tables already have proper RLS policies:
 - ✅ `transactions` 
 - ✅ `backup_codes`
-- ✅ `user_two_factor`
 - ✅ `split_bill_history`
 
 The `profiles` table was missing these policies, which is now fixed.

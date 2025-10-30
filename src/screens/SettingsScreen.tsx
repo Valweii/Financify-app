@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useFinancifyStore } from "@/store";
-import { User, LogOut, Shield, HelpCircle, ExternalLink, Moon, ChevronDown, ChevronUp, Key, Smartphone } from "lucide-react";
+import { User, LogOut, Shield, HelpCircle, ExternalLink, Moon, ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -12,7 +12,7 @@ import { EncryptionStatus } from "@/components/EncryptionStatus";
 import { useEncryption } from "@/hooks/useEncryption";
 
 export const SettingsScreen = () => {
-  const { user, profile, signOut, setProfile, twoFactorEnabled, twoFactorBackupCodes, loadTwoFactorSettings } = useFinancifyStore();
+  const { user, profile, signOut, setProfile } = useFinancifyStore();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'light');
   const { isKeySetup, isKeyLoading } = useEncryption();
   const { toast } = useToast();
@@ -30,13 +30,6 @@ export const SettingsScreen = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // Load 2FA settings when component mounts
-  useEffect(() => {
-    if (user) {
-      loadTwoFactorSettings();
-    }
-  }, [user, loadTwoFactorSettings]);
-
   const handleSignOut = async () => {
     setIsSignOutConfirmOpen(true);
   };
@@ -47,33 +40,6 @@ export const SettingsScreen = () => {
       setIsSignOutConfirmOpen(false);
     } catch (error) {
       // Error signing out
-    }
-  };
-
-  const handleCopy2FABackupCodes = async () => {
-    try {
-      // Load 2FA settings to ensure we have the latest backup codes
-      await loadTwoFactorSettings();
-      
-      if (twoFactorBackupCodes && twoFactorBackupCodes.length > 0) {
-        navigator.clipboard.writeText(twoFactorBackupCodes.join('\n'));
-        toast({
-          title: "2FA Backup Codes Copied",
-          description: "Your 2FA backup codes have been copied to clipboard.",
-        });
-      } else {
-        toast({
-          title: "No Backup Codes Found",
-          description: "No 2FA backup codes are available. Please set up 2FA first.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Failed to Copy Codes",
-        description: "Unable to copy backup codes. Please try again.",
-        variant: "destructive",
-      });
     }
   };
 
@@ -181,52 +147,7 @@ export const SettingsScreen = () => {
                     <p className="text-sm text-muted-foreground">Loading encryption status...</p>
                   </div>
                 ) : (
-                  <>
-                    <EncryptionStatus />
-                    
-                    {/* Two-Factor Authentication Section */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                            <Smartphone className="w-5 h-5 text-primary" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold">Two-Factor Authentication</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {twoFactorEnabled ? 'Enabled' : 'Not set up'}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {twoFactorEnabled ? (
-                            <div className="flex items-center gap-1 text-xs text-success px-2 py-1 bg-success/10 rounded-full">
-                              <div className="w-2 h-2 bg-success rounded-full"></div>
-                              <span>Active</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1 text-xs text-muted px-2 py-1 bg-muted/50 rounded-full">
-                              <div className="w-2 h-2 bg-muted rounded-full"></div>
-                              <span>Inactive</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {twoFactorEnabled && (
-                        <div className="flex gap-2">
-                          <Button 
-                            onClick={handleCopy2FABackupCodes}
-                            variant="outline"
-                            size="sm"
-                          >
-                            <Key className="w-4 h-4 mr-1" />
-                            Backup Codes
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </>
+                  <EncryptionStatus />
                 )}
               </div>
             </div>

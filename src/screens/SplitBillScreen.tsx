@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, Pencil, ImagePlus, History, Receipt, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { Plus, Trash2, Pencil, ImagePlus, History, Receipt, ArrowLeft, ArrowRight, Loader2, Eye, Users } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MoneyDisplay } from "@/components/MoneyDisplay";
 import { useFinancifyStore, type SplitBillHistory } from "@/store";
@@ -24,7 +24,7 @@ type Item = {
 };
 
 export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -1 }: { onReset?: (resetFn: () => void) => void; isActive?: boolean; onNavigate?: () => void; startAtStep?: number }) => {
-  const { createTransaction, user, profile, saveSplitBillHistory, splitBillHistory, loadSplitBillHistory } = useFinancifyStore();
+  const { createTransaction, user, profile, saveSplitBillHistory, splitBillHistory, loadSplitBillHistory, updatePaymentStatus, removeSplitBill } = useFinancifyStore();
   const navigate = useNavigate();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
@@ -51,6 +51,18 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
   const [progressFrom, setProgressFrom] = useState<number>(0);
   const [progressTo, setProgressTo] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  
+  // State for viewing split bill details
+  const [showSplitBillDetail, setShowSplitBillDetail] = useState<boolean>(false);
+  const [selectedSplitBill, setSelectedSplitBill] = useState<SplitBillHistory | null>(null);
+  
+  // State for drag functionality
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [dragStartY, setDragStartY] = useState<number>(0);
+  const [dragCurrentY, setDragCurrentY] = useState<number>(0);
+  const [sheetHeight, setSheetHeight] = useState<number>(80);
+  const [dragOffset, setDragOffset] = useState<number>(0);
+  const [isAnimating, setIsAnimating] = useState<boolean>(false);
 
   // Calculate progress percentage based on step
   const getProgressPercentage = (step: number) => {
@@ -133,8 +145,121 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
     navigate('/split-bill');
   };
 
-  const handleViewHistory = () => {
-    navigate('/active-split-bills');
+  const handleViewSplitBillDetail = (bill: SplitBillHistory) => {
+    setSelectedSplitBill(bill);
+    setShowSplitBillDetail(true);
+  };
+
+  const handleBackToList = () => {
+    setIsAnimating(true);
+    setDragOffset(window.innerHeight); // Slide completely off screen
+    
+    setTimeout(() => {
+      setShowSplitBillDetail(false);
+      setSelectedSplitBill(null);
+      setSheetHeight(80);
+      setIsDragging(false);
+      setDragOffset(0);
+      setIsAnimating(false);
+    }, 400); // Match spring animation duration
+  };
+
+  // Drag handlers with improved physics
+  const handleDragStart = (clientY: number) => {
+    if (isAnimating) return;
+    setIsDragging(true);
+    setDragStartY(clientY);
+    setDragCurrentY(clientY);
+    setDragOffset(0);
+  };
+
+  const handleDragMove = (clientY: number) => {
+    if (!isDragging || isAnimating) return;
+    setDragCurrentY(clientY);
+    
+    const deltaY = clientY - dragStartY;
+    
+    // Only allow dragging downwards (positive deltaY)
+    if (deltaY < 0) {
+      setDragOffset(0);
+      return;
+    }
+    
+    // Apply rubber band effect - resistance increases with distance
+    const rubberBandFactor = 0.55;
+    const resistance = Math.pow(rubberBandFactor, deltaY / 100);
+    const adjustedDelta = deltaY * resistance;
+    
+    setDragOffset(Math.max(0, adjustedDelta));
+  };
+
+  const handleDragEnd = () => {
+    if (!isDragging || isAnimating) return;
+    setIsDragging(false);
+    
+    const viewportHeight = window.innerHeight;
+    const dragDistance = dragOffset;
+    const dragPercentage = (dragDistance / viewportHeight) * 100;
+    
+    // Threshold: 120px or 25% of viewport height, whichever is smaller
+    const thresholdPx = Math.min(120, viewportHeight * 0.25);
+    const thresholdPercentage = (thresholdPx / viewportHeight) * 100;
+    
+    // Check velocity for swipe gesture
+    const velocity = dragCurrentY - dragStartY;
+    const isSwipeDown = velocity > 5;
+    
+    if (dragPercentage > thresholdPercentage || isSwipeDown) {
+      // Animate close with spring
+      setIsAnimating(true);
+      setDragOffset(viewportHeight);
+      
+      setTimeout(() => {
+        setShowSplitBillDetail(false);
+        setSelectedSplitBill(null);
+        setSheetHeight(80);
+        setDragOffset(0);
+        setIsAnimating(false);
+      }, 400);
+    } else {
+      // Spring back to original position
+      setIsAnimating(true);
+      setDragOffset(0);
+      
+      setTimeout(() => {
+        setIsAnimating(false);
+      }, 400);
+    }
+  };
+
+  const handlePaymentToggle = (billId: string, personId: string, hasPaid: boolean) => {
+    updatePaymentStatus(billId, personId, hasPaid);
+    
+    // Update local state if viewing this bill
+    if (selectedSplitBill && selectedSplitBill.id === billId) {
+      setSelectedSplitBill({
+        ...selectedSplitBill,
+        payment_status: {
+          ...selectedSplitBill.payment_status,
+          [personId]: hasPaid
+        }
+      });
+      
+      // Check if all paid and remove the bill
+      const allPaid = selectedSplitBill.people.every(person => 
+        person.id === personId ? hasPaid : ((selectedSplitBill.payment_status || {})[person.id] || false)
+      );
+      
+      if (allPaid && hasPaid) {
+        // Automatically remove the bill and go back to list
+        removeSplitBill(billId);
+        handleBackToList();
+        toast({
+          title: "Split Bill Completed",
+          description: "All participants have paid. The bill has been removed.",
+        });
+      }
+    }
   };
 
 
@@ -221,6 +346,49 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
       }
     }
   }, [step, resetSplitBillState]);
+
+  // Global mouse/touch move and up handlers for dragging
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        e.preventDefault();
+        handleDragMove(e.clientY);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isDragging) {
+        e.preventDefault();
+        handleDragMove(e.touches[0].clientY);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isDragging) {
+        handleDragEnd();
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (isDragging) {
+        handleDragEnd();
+      }
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDragging, dragStartY]);
 
   const parseCurrencyToCents = (raw: string): number => {
     // Normalize Indonesian/US formats: remove currency, spaces, dots as thousand sep, commas as decimal
@@ -448,56 +616,257 @@ export const SplitBillScreen = ({ onReset, isActive, onNavigate, startAtStep = -
         {step >= 0 && <p className="text-muted-foreground">Step {step + 1} of 4</p>}
       </div>
 
-      {step === -1 && (
+      {step === -1 && !showSplitBillDetail && (
         <div className="space-y-6">
-          <div className="flex flex-col gap-4">
-            <Card 
-              className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" 
-              onClick={handleStartSplitBill}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleStartSplitBill();
-                }
-              }}
-            >
-                <div className="flex items-center space-x-4">
-                  <div className="p-3 bg-primary/10 rounded-lg">
-                    <Receipt className="w-8 h-8 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-responsive-lg font-semibold">Split a Bill Now</h3>
-                    <p className="text-muted-foreground">Start a new bill splitting session</p>
-                  </div>
-                </div>
-              </Card>
-              
-            <Card 
-              className="financial-card p-6 cursor-pointer hover:shadow-lg transition-shadow" 
-              onClick={handleViewHistory}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleViewHistory();
-                }
-              }}
-            >
-                <div className="flex items-center space-x-4">
-                  <div className="p-3 bg-primary/10 rounded-lg">
-                    <History className="w-8 h-8 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-responsive-lg font-semibold">View Active Split Bill</h3>
-                    <p className="text-muted-foreground">See your active split bills and payment status</p>
-                  </div>
-                </div>
-              </Card>
+          {/* Add New Split Bill Card with Striped Border */}
+          <Card 
+            className="financial-card p-0 cursor-pointer hover:shadow-lg transition-all overflow-hidden relative group"
+            onClick={handleStartSplitBill}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleStartSplitBill();
+              }
+            }}
+            style={{
+              backgroundImage: `repeating-linear-gradient(
+                45deg,
+                hsl(var(--primary) / 0.05),
+                hsl(var(--primary) / 0.05) 10px,
+                hsl(var(--primary) / 0.1) 10px,
+                hsl(var(--primary) / 0.1) 20px
+              )`,
+              border: '2px dashed hsl(var(--primary) / 0.3)',
+            }}
+          >
+            <div className="p-8 flex flex-col items-center justify-center gap-3 min-h-[140px]">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Plus className="w-8 h-8 text-primary" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-responsive-lg font-semibold">Add New Split Bill</h3>
+                <p className="text-muted-foreground text-sm">Start a new bill splitting session</p>
+              </div>
             </div>
+          </Card>
+
+          {/* Active Split Bills Section */}
+          <div className="space-y-4">
+            {splitBillHistory.length === 0 ? (
+              <Card className="financial-card p-8 text-center">
+                <History className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No active split bills yet</p>
+                <p className="text-sm text-muted-foreground">Start splitting bills to see them here</p>
+              </Card>
+            ) : (
+              <>
+                <h2 className="text-xl font-semibold">Active Split Bills</h2>
+                {splitBillHistory.map((history) => {
+                  const paidCount = Object.values(history.payment_status || {}).filter(Boolean).length;
+                  const totalCount = history.people.length;
+                  
+                  return (
+                    <Card 
+                      key={history.id} 
+                      className="financial-card p-4 cursor-pointer hover:shadow-lg transition-shadow"
+                      onClick={() => handleViewSplitBillDetail(history)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleViewSplitBillDetail(history);
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <h4 className="font-medium text-lg">{new Date(history.date).toLocaleDateString()}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {history.people.length} people • {history.items.length} items
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {paidCount}/{totalCount} paid
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <MoneyDisplay amount={history.total_amount_cents} size="lg" />
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t flex items-center justify-center gap-2 text-primary">
+                        <Eye className="w-4 h-4" />
+                        <span className="text-sm font-medium">View Details</span>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </>
+            )}
+          </div>
         </div>
+      )}
+
+      {/* Split Bill Detail Modal - Sliding Bottom Sheet */}
+      {showSplitBillDetail && selectedSplitBill && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/60 z-50"
+            onClick={!isDragging && !isAnimating ? handleBackToList : undefined}
+            style={{ 
+              animation: 'fadeIn 400ms cubic-bezier(0.16, 1, 0.3, 1)',
+              opacity: isDragging 
+                ? Math.max(0.2, 0.6 * (1 - dragOffset / window.innerHeight))
+                : isAnimating && dragOffset > 0
+                ? 0
+                : 0.6,
+              transition: isAnimating ? 'opacity 400ms cubic-bezier(0.16, 1, 0.3, 1)' : 'none',
+            }}
+          />
+          
+          {/* Bottom Sheet */}
+          <div 
+            className="fixed inset-x-0 bottom-0 z-50 bg-background rounded-t-3xl shadow-2xl overflow-hidden select-none"
+            style={{
+              height: '80vh',
+              transform: `translateY(${dragOffset}px)`,
+              animation: !isDragging && dragOffset === 0 && !isAnimating ? 'slideUp 400ms cubic-bezier(0.16, 1, 0.3, 1)' : 'none',
+              transition: isAnimating 
+                ? 'transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1)' // Spring easing
+                : 'none',
+              willChange: 'transform',
+            }}
+          >
+            {/* Handle Bar - Draggable */}
+            <div 
+              className="flex justify-center pt-4 pb-3 cursor-grab active:cursor-grabbing touch-none"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleDragStart(e.clientY);
+              }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                handleDragStart(e.touches[0].clientY);
+              }}
+            >
+              <div 
+                className="w-12 h-1.5 bg-muted-foreground/30 rounded-full transition-all duration-200"
+                style={{
+                  transform: isDragging ? 'scaleX(1.5)' : 'scaleX(1)',
+                  backgroundColor: isDragging ? 'hsl(var(--muted-foreground) / 0.5)' : 'hsl(var(--muted-foreground) / 0.3)',
+                }}
+              />
+            </div>
+
+            {/* Header */}
+            <div className="sticky top-0 bg-background/95 backdrop-blur-sm border-b border-border z-10 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold">Split Bill Details</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(selectedSplitBill.date).toLocaleDateString()}
+                  </p>
+                </div>
+                <MoneyDisplay amount={selectedSplitBill.total_amount_cents} size="xl" />
+              </div>
+            </div>
+
+            {/* Scrollable Content */}
+            <div 
+              className="overflow-y-auto px-6 py-6 space-y-6" 
+              style={{ 
+                height: 'calc(80vh - 120px)',
+                opacity: isDragging ? Math.max(0.5, 1 - (dragOffset / 200)) : 1,
+                transition: isAnimating ? 'opacity 400ms ease-out' : 'none',
+              }}
+            >
+              {/* Bill Summary */}
+              <Card className="financial-card p-4 bg-primary/5 border-primary/20">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Participants</p>
+                    <p className="text-2xl font-bold">{selectedSplitBill.people.length}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">Total Items</p>
+                    <p className="text-2xl font-bold">{selectedSplitBill.items.length}</p>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Items List */}
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-primary" />
+                  Items
+                </h3>
+                {selectedSplitBill.items.map((item) => (
+                  <Card key={item.id} className="financial-card p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium">{item.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {item.participants.length} participant{item.participants.length !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <MoneyDisplay amount={item.price_cents} size="md" />
+                    </div>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Payment Status */}
+              <div className="space-y-3 pb-6">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary" />
+                  Payment Status
+                </h3>
+                {selectedSplitBill.people.map((person) => {
+                  const hasPaid = (selectedSplitBill.payment_status || {})[person.id] || false;
+                  const personTotal = selectedSplitBill.person_totals[person.id]?.total_cents || 0;
+                  
+                  return (
+                    <div 
+                      key={person.id} 
+                      className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer hover:shadow-md transition-all duration-300 ease-in-out ${
+                        hasPaid
+                          ? 'bg-primary text-primary-foreground border-primary shadow-md'
+                          : 'bg-card border-border/50 hover:border-primary/30 hover:shadow-[var(--shadow-float)]'
+                      }`}
+                      onClick={() => handlePaymentToggle(selectedSplitBill.id, person.id, !hasPaid)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === ' ' || e.key === 'Enter') {
+                          e.preventDefault();
+                          handlePaymentToggle(selectedSplitBill.id, person.id, !hasPaid);
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10 ring-2 ring-background">
+                          <AvatarFallback className="text-sm font-semibold">{getInitials(person.name)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-semibold">{person.name}</p>
+                          <p className={`text-sm transition-colors duration-300 ease-in-out ${hasPaid ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+                            {hasPaid ? '✓ Paid' : 'Pending'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <MoneyDisplay amount={personTotal} size="md" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {step === 0 && (

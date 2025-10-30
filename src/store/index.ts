@@ -55,12 +55,6 @@ interface FinancifyStore {
   // Encryption state
   encryptionKey: CryptoKey | null;
   
-  // Two-Factor Authentication state
-  twoFactorEnabled: boolean;
-  twoFactorSecret: string | null;
-  twoFactorBackupCodes: string[];
-  twoFactorSetupRequired: boolean;
-  
   // UI state
   isLoading: boolean;
   
@@ -75,17 +69,6 @@ interface FinancifyStore {
   
   // Encryption actions
   setEncryptionKey: (key: CryptoKey | null) => void;
-  
-  // Two-Factor Authentication actions
-  setTwoFactorEnabled: (enabled: boolean) => void;
-  setTwoFactorSecret: (secret: string | null) => void;
-  setTwoFactorBackupCodes: (codes: string[]) => void;
-  setTwoFactorSetupRequired: (required: boolean) => void;
-  loadTwoFactorSettings: () => Promise<void>;
-  saveTwoFactorSettings: (secret: string, backupCodes: string[]) => Promise<void>;
-  verifyTwoFactorToken: (token: string) => Promise<boolean>;
-  useBackupCode: (code: string) => Promise<boolean>;
-  checkTwoFactorSetup: () => Promise<boolean>;
   
   // Split bill history actions
   setSplitBillHistory: (history: SplitBillHistory[]) => void;
@@ -124,10 +107,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   importedDraft: [],
   splitBillHistory: [],
   encryptionKey: null,
-  twoFactorEnabled: false,
-  twoFactorSecret: null,
-  twoFactorBackupCodes: [],
-  twoFactorSetupRequired: false,
   isLoading: false,
   
   // Actions
@@ -153,146 +132,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
   
   // Encryption actions
   setEncryptionKey: (encryptionKey) => set({ encryptionKey }),
-  
-  // Two-Factor Authentication actions
-  setTwoFactorEnabled: (enabled) => set({ twoFactorEnabled: enabled }),
-  
-  setTwoFactorSecret: (secret) => set({ twoFactorSecret: secret }),
-  
-  setTwoFactorBackupCodes: (codes) => set({ twoFactorBackupCodes: codes }),
-  
-  setTwoFactorSetupRequired: (required) => set({ twoFactorSetupRequired: required }),
-  
-  loadTwoFactorSettings: async () => {
-    const { user } = get();
-    if (!user) {
-      return;
-    }
-    
-    try {
-      const { data, error } = await supabase
-        .from('user_two_factor')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (error && error.code !== 'PGRST116') {
-        // Error loading 2FA settings
-        return;
-      }
-      
-      if (data) {
-        set({ 
-          twoFactorEnabled: data.enabled,
-          twoFactorSecret: data.secret,
-          twoFactorBackupCodes: data.backup_codes || []
-        });
-      }
-    } catch (error) {
-      // Error loading 2FA settings
-    }
-  },
-  
-  saveTwoFactorSettings: async (secret, backupCodes) => {
-    const { user } = get();
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-    
-    try {
-      const { error } = await supabase
-        .from('user_two_factor')
-        .upsert({
-          user_id: user.id,
-          secret,
-          backup_codes: backupCodes,
-          enabled: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-      
-      if (error) throw error;
-      
-      set({ 
-        twoFactorEnabled: true,
-        twoFactorSecret: secret,
-        twoFactorBackupCodes: backupCodes
-      });
-    } catch (error) {
-      throw error;
-    }
-  },
-  
-  verifyTwoFactorToken: async (token) => {
-    const { twoFactorSecret } = get();
-    if (!twoFactorSecret) {
-      return false;
-    }
-    
-    try {
-      const { verifyTwoFactorToken } = await import('@/lib/two-factor-auth');
-      return verifyTwoFactorToken(twoFactorSecret, token);
-    } catch (error) {
-      return false;
-    }
-  },
-  
-  useBackupCode: async (code) => {
-    const { user, twoFactorBackupCodes } = get();
-    if (!user || !twoFactorBackupCodes.includes(code)) {
-      return false;
-    }
-    
-    try {
-      // Remove the used backup code
-      const updatedCodes = twoFactorBackupCodes.filter(c => c !== code);
-      
-      const { error } = await supabase
-        .from('user_two_factor')
-        .update({ 
-          backup_codes: updatedCodes,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', user.id);
-      
-      if (error) throw error;
-      
-      set({ twoFactorBackupCodes: updatedCodes });
-      return true;
-    } catch (error) {
-      return false;
-    }
-  },
-  
-  checkTwoFactorSetup: async () => {
-    const { user } = get();
-    if (!user) {
-      return false;
-    }
-    
-    try {
-      const { data, error } = await supabase
-        .from('user_two_factor')
-        .select('enabled')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (error && error.code !== 'PGRST116') {
-        // Error checking 2FA setup
-        return false;
-      }
-      
-      const isSetup = data?.enabled === true;
-      set({ 
-        twoFactorEnabled: isSetup,
-        twoFactorSetupRequired: !isSetup
-      });
-      
-      return isSetup;
-    } catch (error) {
-      return false;
-    }
-  },
   
   // Split bill history actions
   setSplitBillHistory: (splitBillHistory) => set({ splitBillHistory: splitBillHistory.map(b => ({
@@ -787,10 +626,6 @@ export const useFinancifyStore = create<FinancifyStore>((set, get) => ({
 
   signOut: async () => {
     await supabase.auth.signOut();
-    // Clear 2FA verification state from sessionStorage
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('twoFactorVerified');
-    }
     set({
       user: null,
       session: null,
