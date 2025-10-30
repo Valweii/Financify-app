@@ -201,7 +201,7 @@ export const SplitBillDetailModal = ({
       <div 
         className="fixed inset-x-0 bottom-0 z-50 bg-background rounded-t-3xl shadow-2xl overflow-hidden select-none"
         style={{
-          height: '80vh',
+          height: 'min(80dvh, calc(var(--dvh, 100vh) * 0.8))',
           transform: `translateY(${dragOffset}px)`,
           // Only play the enter animation on first mount
           animation: shouldPlayEnter ? 'slideUp 400ms cubic-bezier(0.16, 1, 0.3, 1)' : 'none',
@@ -249,7 +249,7 @@ export const SplitBillDetailModal = ({
         <div 
           className="overflow-y-auto px-6 py-6 space-y-6" 
           style={{ 
-            height: `calc(${sheetHeight}vh - 120px)`,
+            height: `calc(min(80dvh, calc(var(--dvh, 100vh) * 0.8)) - 120px)`,
             opacity: isDragging ? Math.max(0.5, 1 - (dragOffset / 200)) : 1,
             transition: isAnimating ? 'opacity 400ms ease-out' : 'none',
           }}

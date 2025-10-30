@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Key, Shield, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { setupVisualViewport } from "@/lib/viewport";
 
 export const FinancifyApp = () => {
   const [activeTab, setActiveTab] = useState<NavigationTab>("dashboard");
@@ -43,6 +44,12 @@ export const FinancifyApp = () => {
     setEncryptionKey
   } = useFinancifyStore();
   const { isKeySetup, isKeyLoading, initializeAutoEncryption } = useEncryption();
+
+  // Setup viewport utilities for mobile keyboard handling
+  useEffect(() => {
+    const cleanup = setupVisualViewport();
+    return cleanup;
+  }, []);
 
   useEffect(() => {
     // Set up auth state listener

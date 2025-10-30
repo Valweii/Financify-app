@@ -179,7 +179,7 @@ export const CategoryDetailSheet = ({
       <div 
         className="fixed inset-x-0 bottom-0 z-50 bg-background rounded-t-3xl shadow-2xl overflow-hidden select-none"
         style={{
-          height: '80vh',
+          height: 'min(80dvh, calc(var(--dvh, 100vh) * 0.8))',
           transform: `translateY(${dragOffset}px)`,
           animation: shouldPlayEnter ? 'slideUp 400ms cubic-bezier(0.16, 1, 0.3, 1)' : 'none',
           transition: isAnimating 
@@ -239,7 +239,7 @@ export const CategoryDetailSheet = ({
         </div>
 
         {/* Transactions List */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4" style={{ height: 'calc(80vh - 90px)' }}>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4" style={{ height: 'calc(min(80dvh, calc(var(--dvh, 100vh) * 0.8)) - 90px)' }}>
           <div className="space-y-2 pb-20 w-full">
             {filteredSorted.map((transaction) => (
               <Card 

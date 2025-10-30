@@ -27,8 +27,6 @@ export const TransactionInputDialog = ({ isOpen, onClose, initialTransaction }: 
     date: initialTransaction?.date || new Date().toISOString().split('T')[0]
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Update form data when initialTransaction changes
   useEffect(() => {
@@ -84,32 +82,6 @@ export const TransactionInputDialog = ({ isOpen, onClose, initialTransaction }: 
       setFormData(prev => ({ ...prev, category: '' }));
     }
   }, [formData.type, categoryOptions, formData.category]);
-
-  // Detect mobile device and keyboard
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    const handleResize = () => {
-      checkMobile();
-      // Detect virtual keyboard on mobile
-      if (window.innerHeight < window.screen.height * 0.75) {
-        setKeyboardHeight(window.screen.height - window.innerHeight);
-      } else {
-        setKeyboardHeight(0);
-      }
-    };
-
-    checkMobile();
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
-    
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
-    };
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,15 +159,11 @@ export const TransactionInputDialog = ({ isOpen, onClose, initialTransaction }: 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent 
-        className={`max-w-md mx-auto rounded-3xl ${
-          isMobile && keyboardHeight > 0 
-            ? 'fixed bottom-0 left-1/2 transform -translate-x-1/2 mb-4 max-h-[calc(100vh-2rem)] overflow-y-auto' 
-            : ''
-        }`}
-        style={isMobile && keyboardHeight > 0 ? { 
-          marginBottom: `${Math.max(keyboardHeight - 20, 0)}px`,
-          transition: 'margin-bottom 0.3s ease-in-out'
-        } : {}}
+        className="max-w-md mx-auto rounded-3xl max-h-[90dvh] overflow-y-auto"
+        style={{
+          // Use CSS variable for dynamic viewport height or fallback to dvh
+          maxHeight: 'min(90dvh, calc(var(--dvh, 100vh) * 0.9))',
+        }}
       >
         <DialogHeader className="rounded-t-3xl">
           <DialogTitle className="text-xl font-bold">
