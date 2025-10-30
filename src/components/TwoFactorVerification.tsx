@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,17 +23,72 @@ export const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
   const { verifyTwoFactorToken, useBackupCode } = useFinancifyStore();
   const { toast } = useToast();
   
-  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
   const [backupCode, setBackupCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isUsingBackup, setIsUsingBackup] = useState(false);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Focus first input when dialog opens
+  useEffect(() => {
+    if (isOpen && !isUsingBackup && inputRefs.current[0]) {
+      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+    }
+  }, [isOpen, isUsingBackup]);
+
+  // Auto-submit when all digits are filled
+  useEffect(() => {
+    const isComplete = verificationCode.every(digit => digit !== '');
+    if (isComplete && !isVerifying && !isUsingBackup) {
+      // Small delay for better UX - user can see all digits filled
+      const timer = setTimeout(() => {
+        handleVerifyCode();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [verificationCode, isVerifying, isUsingBackup]);
+
+  const handleDigitChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return; // Only allow digits
+    
+    const newCode = [...verificationCode];
+    newCode[index] = value;
+    setVerificationCode(newCode);
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !verificationCode[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    const newCode = ['', '', '', '', '', ''];
+    for (let i = 0; i < pastedData.length; i++) {
+      newCode[i] = pastedData[i];
+    }
+    setVerificationCode(newCode);
+    
+    // Focus the next empty input or the last one
+    const nextEmptyIndex = newCode.findIndex(digit => digit === '');
+    const focusIndex = nextEmptyIndex === -1 ? 5 : nextEmptyIndex;
+    inputRefs.current[focusIndex]?.focus();
+  };
 
   const handleVerifyCode = async () => {
-    if (!verificationCode || verificationCode.length !== 6) return;
+    const code = verificationCode.join('');
+    if (code.length !== 6) return;
     
     setIsVerifying(true);
     try {
-      const isValid = await verifyTwoFactorToken(verificationCode);
+      const isValid = await verifyTwoFactorToken(code);
       
       if (isValid) {
         toast({
@@ -49,7 +104,8 @@ export const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
           description: "The verification code is incorrect. Please try again.",
           variant: "destructive",
         });
-        setVerificationCode('');
+        setVerificationCode(['', '', '', '', '', '']);
+        inputRefs.current[0]?.focus();
       }
     } catch (error) {
       toast({
@@ -97,7 +153,7 @@ export const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
   };
 
   const resetForm = () => {
-    setVerificationCode('');
+    setVerificationCode(['', '', '', '', '', '']);
     setBackupCode('');
     setIsUsingBackup(false);
   };
@@ -124,18 +180,26 @@ export const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
           {!isUsingBackup ? (
             <>
               <div className="text-sm text-muted-foreground">
-                Enter the 6-digit code from your authenticator app.
+                Enter the 6-digit code from your authenticator app or paste it.
               </div>
               
               <div>
-                <label className="text-sm font-medium">Verification Code</label>
-                <Input
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="123456"
-                  className="text-center text-lg font-mono tracking-widest"
-                  maxLength={6}
-                />
+                <label className="text-sm font-medium mb-3 block">Verification Code</label>
+                <div className="flex justify-center gap-2">
+                  {verificationCode.map((digit, index) => (
+                    <Input
+                      key={index}
+                      ref={(el) => (inputRefs.current[index] = el)}
+                      value={digit}
+                      onChange={(e) => handleDigitChange(index, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(index, e)}
+                      onPaste={handlePaste}
+                      className="w-12 h-12 text-center text-xl font-semibold border-input rounded-lg focus:border-primary focus:ring-primary"
+                      maxLength={1}
+                      disabled={isVerifying}
+                    />
+                  ))}
+                </div>
               </div>
               
               <div className="text-center">
@@ -159,9 +223,16 @@ export const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
                 <Input
                   value={backupCode}
                   onChange={(e) => setBackupCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    const pastedData = e.clipboardData.getData('text').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+                    setBackupCode(pastedData);
+                  }}
                   placeholder="ABC12345"
                   className="text-center text-lg font-mono tracking-widest"
                   maxLength={8}
+                  autoFocus
+                  disabled={isVerifying}
                 />
               </div>
               
@@ -196,7 +267,7 @@ export const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
             onClick={isUsingBackup ? handleBackupCode : handleVerifyCode}
             disabled={
               isVerifying || 
-              (isUsingBackup ? backupCode.length !== 8 : verificationCode.length !== 6)
+              (isUsingBackup ? backupCode.length !== 8 : !verificationCode.every(digit => digit !== ''))
             }
           >
             {isVerifying ? 'Verifying...' : 'Verify'}

@@ -30,6 +30,18 @@ export const TwoFactorVerificationScreen: React.FC<TwoFactorVerificationScreenPr
     }
   }, [isUsingBackup]);
 
+  // Auto-submit when all digits are filled
+  useEffect(() => {
+    const isComplete = verificationCode.every(digit => digit !== '');
+    if (isComplete && !isVerifying && !isUsingBackup) {
+      // Small delay for better UX - user can see all digits filled
+      const timer = setTimeout(() => {
+        handleVerifyCode();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [verificationCode, isVerifying, isUsingBackup]);
+
   const handleDigitChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return; // Only allow digits
     
@@ -207,6 +219,11 @@ export const TwoFactorVerificationScreen: React.FC<TwoFactorVerificationScreenPr
                 <Input
                   value={backupCode}
                   onChange={(e) => setBackupCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    const pastedData = e.clipboardData.getData('text').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+                    setBackupCode(pastedData);
+                  }}
                   onKeyPress={handleKeyPress}
                   placeholder="ABC12345"
                   className="w-full h-12 text-center text-lg font-mono tracking-widest border-input rounded-lg focus:border-primary focus:ring-primary"
